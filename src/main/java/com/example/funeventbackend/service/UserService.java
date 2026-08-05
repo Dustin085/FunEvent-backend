@@ -1,5 +1,6 @@
 package com.example.funeventbackend.service;
 
+import com.example.funeventbackend.dto.auth.AuthResponse;
 import com.example.funeventbackend.dto.auth.LoginRequest;
 import com.example.funeventbackend.dto.auth.RegisterRequest;
 import com.example.funeventbackend.dto.auth.UserResponse;
@@ -9,6 +10,7 @@ import com.example.funeventbackend.exception.ResourceNotFoundException;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.UserRepository;
+import com.example.funeventbackend.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -19,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
     @Transactional
     public UserResponse register(RegisterRequest dto) {
@@ -41,16 +44,22 @@ public class UserService {
     }
 
     @Transactional(readOnly = true)
-    public String login(LoginRequest dto) {
+    public AuthResponse login(LoginRequest dto) {
         // 嘗試使用 email 撈 User，驗證 User 是否存在
         User user = userRepository.findByEmail(dto.email())
                 .orElseThrow(() -> new InvalidCredentialsException("帳號或密碼錯誤"));
         // 驗證密碼
-        if(!passwordEncoder.matches(dto.password(), user.getPasswordHash())){
+        if (!passwordEncoder.matches(dto.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException("帳號或密碼錯誤");
         }
-        // TODO 簽發 JWT
-        return "";
+        String token = jwtService.generateToken(user);
+        return new AuthResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getName(),
+                user.getRole(),
+                token
+        );
     }
 
     /**

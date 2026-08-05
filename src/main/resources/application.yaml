@@ -37,6 +37,11 @@ spring:
       enabled: true
       path: /h2-console
 
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: 3600000 # 一小時
+
 # ── Log 等級 ──────────────────────────────────────────────────
 logging:
   level:

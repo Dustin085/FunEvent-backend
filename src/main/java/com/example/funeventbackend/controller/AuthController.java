@@ -1,5 +1,6 @@
 package com.example.funeventbackend.controller;
 
+import com.example.funeventbackend.dto.auth.AuthResponse;
 import com.example.funeventbackend.dto.auth.LoginRequest;
 import com.example.funeventbackend.dto.auth.RegisterRequest;
 import com.example.funeventbackend.dto.auth.UserResponse;
@@ -25,7 +26,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(userService.login(request));
     }
 }
