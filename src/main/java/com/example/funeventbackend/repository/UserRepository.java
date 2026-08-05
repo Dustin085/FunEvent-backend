@@ -14,4 +14,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // Spring Data JPA 的語意分析：它會自動幫你推斷出 SQL (以email搜尋)：
     // SELECT * FROM members WHERE email = ?
     Optional<User> findByEmail(String email);
+
+    boolean existsByEmail(String email);
 }

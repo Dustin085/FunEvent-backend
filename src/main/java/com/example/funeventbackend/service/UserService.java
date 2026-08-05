@@ -1,9 +1,13 @@
 package com.example.funeventbackend.service;
 
+import com.example.funeventbackend.dto.auth.LoginRequest;
+import com.example.funeventbackend.dto.auth.RegisterRequest;
 import com.example.funeventbackend.dto.auth.UserResponse;
+import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +15,39 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class UserService {
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    @Transactional
+    public UserResponse register(RegisterRequest dto) {
+        // 驗證 Email 是否已經使用過
+        if (userRepository.existsByEmail(dto.email())) {
+            throw new RuntimeException("Email 已經被使用過了");
+        }
+        // hash 密碼
+        String hashedPassword = passwordEncoder.encode(dto.password());
+        // 建立新 User
+        User newUser = User.builder()
+                .email(dto.email())
+                .passwordHash(hashedPassword)
+                .name(dto.name())
+                .role(RoleType.USER)
+                .build();
+        // 存入資料庫
+        User savedUser = userRepository.save(newUser);
+        return convertToResponse(savedUser);
+    }
+
+    public String login(LoginRequest dto) {
+        // 嘗試使用 email 撈 User，驗證 User 是否存在
+        User user = userRepository.findByEmail(dto.email())
+                .orElseThrow(() -> new RuntimeException("帳號或密碼錯誤"));
+        // 驗證密碼
+        if(!passwordEncoder.matches(dto.password(), user.getPasswordHash())){
+            throw new RuntimeException("帳號或密碼錯誤");
+        }
+        // TODO 簽發 JWT
+        return "";
+    }
 
     /**
      * 取得特定 User Entity 僅供後端內部使用，回傳給前端應使用 DTO
@@ -24,10 +61,9 @@ public class UserService {
                 .orElseThrow(() -> new RuntimeException("找不到使用者"));
     }
 
-
-
     /**
      * 將 User Entity 轉換成 UserResponse
+     *
      * @param user 要被轉換的 User Entity
      * @return 符合傳入的 User 狀態的 UserResponse
      */
@@ -35,7 +71,8 @@ public class UserService {
         return new UserResponse(
                 user.getId(),
                 user.getEmail(),
-                user.getName()
+                user.getName(),
+                user.getRole()
         );
     }
 }

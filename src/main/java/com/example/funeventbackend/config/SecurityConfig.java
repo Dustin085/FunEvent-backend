@@ -42,7 +42,7 @@ public class SecurityConfig {
     }
 
     /**
-     * 【第一條 chain】只負責 H2 Console。
+     * 【第一條 chain】只負責 H2 Console。轉入 PostgreSQL 之後應該刪掉這條 chain
      * <p>
      * 為什麼要獨立一條而不是全部寫在一起？因為 h2-console 需要兩個
      * 「降低安全性」的設定，把它們限制在這條 chain 裡，就不會汙染到 API。
@@ -110,7 +110,7 @@ public class SecurityConfig {
                 // TODO 階段 C：改成 /api/auth/** 放行、其餘 authenticated()
                 .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
 
-                // 關掉預設的登入表單與 HTTP Basic。
+                // 關掉預設的登入表單與 HTTP Basic。前後端分離不需要 Security 產生的登入頁
                 // 不關的話，未授權的請求會被導向 HTML 登入頁或跳出瀏覽器彈窗，
                 // 但 API 應該回傳 401 讓前端自己處理。
                 .formLogin(formLogin -> formLogin.disable())

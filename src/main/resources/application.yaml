@@ -26,6 +26,7 @@ spring:
     # 關閉 Open Session In View。
     # 預設 true 會讓 DB session 一路撐到 View 渲染完，容易寫出隱藏的 N+1 查詢。
     # 關掉後 lazy 關聯若在 Service 外才存取會直接報錯 —— 這是好事，能逼出真正的問題。
+    # 關掉後 Session 只會保持在一次 Transactional 之中
     open-in-view: false
 
   # ── H2 Console ─────────────────────────────────────────────
