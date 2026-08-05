@@ -10,7 +10,7 @@ public record RegisterRequest(
         String email,
 
         @NotBlank(message = "密碼不可為空")
-        @Size(min = 6, message = "密碼至少 6 個字元")
+        @Size(min = 8, message = "密碼至少 8 個字元")
         String password,
 
         @NotBlank

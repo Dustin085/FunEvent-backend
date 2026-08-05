@@ -1,21 +1,38 @@
 package com.example.funeventbackend.dto.error;
 
-import java.time.LocalDateTime;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import org.springframework.http.HttpStatus;
+
+import java.time.Instant;
+import java.util.List;
 
 public record ErrorResponse(
         int status,
         String error,
         String message,
         String path,
-        LocalDateTime timestamp
+        Instant timestamp,
+
+        // 沒有欄位錯誤時，這個 key 不會出現在 JSON 裡
+        @JsonInclude(JsonInclude.Include.NON_EMPTY)
+        List<FieldError> errors
 ) {
-    // 工廠方法，方便快速建立 ErrorResponse
-    public static ErrorResponse of(int status, String error, String message, String path) {
-        return new ErrorResponse(status, error, message, path, LocalDateTime.now());
+    /** 單一欄位的錯誤。同一欄位可能有多筆（例如密碼同時太短又缺數字）。 */
+    public record FieldError(String field, String message) {}
+
+    public static ErrorResponse of(HttpStatus status, String message, String path) {
+        return of(status, message, path, List.of());
     }
 
-    // 工廠方法，建立常用的 bad request
-    public static ErrorResponse badRequest(String message, String path) {
-        return new ErrorResponse(400, "Bad Requset", message, path, LocalDateTime.now());
+    public static ErrorResponse of(HttpStatus status, String message, String path,
+                                   List<FieldError> errors) {
+        return new ErrorResponse(
+                status.value(),
+                status.getReasonPhrase(),
+                message,
+                path,
+                Instant.now(),
+                errors
+        );
     }
 }

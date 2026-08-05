@@ -3,6 +3,9 @@ package com.example.funeventbackend.service;
 import com.example.funeventbackend.dto.auth.LoginRequest;
 import com.example.funeventbackend.dto.auth.RegisterRequest;
 import com.example.funeventbackend.dto.auth.UserResponse;
+import com.example.funeventbackend.exception.EmailAlreadyExistsException;
+import com.example.funeventbackend.exception.InvalidCredentialsException;
+import com.example.funeventbackend.exception.ResourceNotFoundException;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.UserRepository;
@@ -21,7 +24,7 @@ public class UserService {
     public UserResponse register(RegisterRequest dto) {
         // 驗證 Email 是否已經使用過
         if (userRepository.existsByEmail(dto.email())) {
-            throw new RuntimeException("Email 已經被使用過了");
+            throw new EmailAlreadyExistsException(dto.email());
         }
         // hash 密碼
         String hashedPassword = passwordEncoder.encode(dto.password());
@@ -40,10 +43,10 @@ public class UserService {
     public String login(LoginRequest dto) {
         // 嘗試使用 email 撈 User，驗證 User 是否存在
         User user = userRepository.findByEmail(dto.email())
-                .orElseThrow(() -> new RuntimeException("帳號或密碼錯誤"));
+                .orElseThrow(() -> new InvalidCredentialsException("帳號或密碼錯誤"));
         // 驗證密碼
         if(!passwordEncoder.matches(dto.password(), user.getPasswordHash())){
-            throw new RuntimeException("帳號或密碼錯誤");
+            throw new InvalidCredentialsException("帳號或密碼錯誤");
         }
         // TODO 簽發 JWT
         return "";
@@ -58,7 +61,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public User getUserEntity(Long id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("找不到使用者"));
+                .orElseThrow(() -> new ResourceNotFoundException("找不到使用者"));
     }
 
     /**

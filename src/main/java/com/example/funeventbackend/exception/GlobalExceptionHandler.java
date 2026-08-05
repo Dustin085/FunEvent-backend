@@ -2,28 +2,58 @@ package com.example.funeventbackend.exception;
 
 import com.example.funeventbackend.dto.error.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import java.util.List;
+
 @RestControllerAdvice
+@Slf4j // logger
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
-    // TODO 補上更多種類的例外處理
-    /*
-     *  業務邏輯例外 (Runtime Exception)
-     * */
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<ErrorResponse> handleRuntimeException(
-            RuntimeException e,
+    // EmailAlreadyExistsException
+    @ExceptionHandler(EmailAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleEmailAlreadyExistsException(
+            EmailAlreadyExistsException e,
             HttpServletRequest request
     ) {
-        ErrorResponse response = ErrorResponse.badRequest(
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.CONFLICT,
                 e.getMessage(),
                 request.getRequestURI()
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    // ResourceNotFoundException
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleResourceNotFoundException(
+            ResourceNotFoundException e,
+            HttpServletRequest request
+    ) {
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.NOT_FOUND,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+
+    // InvalidCredentialsException
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCredentialsException(
+            InvalidCredentialsException e,
+            HttpServletRequest request
+    ) {
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.UNAUTHORIZED,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
     }
 
     /*
@@ -34,11 +64,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             Exception e,
             HttpServletRequest request
     ) {
+        // 在後端 log 出這個例外
+        log.error("未預期的例外 [{}]", request.getRequestURI(), e);
         ErrorResponse response = ErrorResponse.of(
-                HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                "Internal Server Error",
-                "系統發生非預期錯誤，請稍後再試",
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "伺服器內部錯誤",
                 request.getRequestURI()
+
         );
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
     }
