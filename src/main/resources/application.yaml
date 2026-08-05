@@ -1,0 +1,43 @@
+spring:
+  application:
+    name: FunEvent-backend
+
+  # ── 資料庫連線 ──────────────────────────────────────────────
+  # 目前用 H2 記憶體模式暫代 PostgreSQL，之後切換只需改這一段。
+  # DB_CLOSE_DELAY=-1：讓 DB 在最後一個連線關閉後仍存活，
+  #   否則 h2-console 斷線重連時資料會整個消失。
+  datasource:
+    url: jdbc:h2:mem:funevent;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  # ── JPA / Hibernate ────────────────────────────────────────
+  jpa:
+    hibernate:
+      # update：依 Entity 自動建表/加欄位。開發期方便，
+      # 但正式環境是地雷（不會刪欄位、無版本紀錄），之後轉 PostgreSQL 要換成 Flyway。
+      ddl-auto: update
+    # 把 Hibernate 產生的 SQL 印出來，方便對照 Entity 與實際 SQL
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    # 關閉 Open Session In View。
+    # 預設 true 會讓 DB session 一路撐到 View 渲染完，容易寫出隱藏的 N+1 查詢。
+    # 關掉後 lazy 關聯若在 Service 外才存取會直接報錯 —— 這是好事，能逼出真正的問題。
+    open-in-view: false
+
+  # ── H2 Console ─────────────────────────────────────────────
+  # 瀏覽器開 http://localhost:8080/h2-console
+  # JDBC URL 要填上面那串 jdbc:h2:mem:funevent，帳號 sa、密碼留空
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+# ── Log 等級 ──────────────────────────────────────────────────
+logging:
+  level:
+    # 顯示 SQL 中 ? 實際綁定的參數值，除錯時很有用
+    org.hibernate.orm.jdbc.bind: trace
