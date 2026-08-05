@@ -40,6 +40,7 @@ public class UserService {
         return convertToResponse(savedUser);
     }
 
+    @Transactional(readOnly = true)
     public String login(LoginRequest dto) {
         // 嘗試使用 email 撈 User，驗證 User 是否存在
         User user = userRepository.findByEmail(dto.email())
