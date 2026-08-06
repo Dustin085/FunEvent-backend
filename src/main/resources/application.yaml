@@ -42,6 +42,13 @@ app:
     secret: ${JWT_SECRET:dev-only-secret-dsafjdfjieawjfeaidjofasiegnoawjio}
     expiration: 3600000 # 一小時
 
+  # ── CORS ───────────────────────────────────────────────────
+  # 允許哪些前端來源讀取本 API 的回應。
+  # 部署時用環境變數覆蓋成正式網域，例如 https://funevent.com
+  # 多個來源用逗號分隔，Spring 會自動切成 List
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+
 # ── Log 等級 ──────────────────────────────────────────────────
 logging:
   level:

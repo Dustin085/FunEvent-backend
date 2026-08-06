@@ -15,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 /**
  * Spring Security 設定。
@@ -89,18 +90,6 @@ public class SecurityConfig {
 
     /**
      * 【第二條 chain】其餘所有請求。
-     * <p>
-     * ⚠ 目前是<b>暫時的全放行</b>設定，只為了讓階段 B 能專心把註冊／登入的
-     * 流程跑通，不要一開始就被 401 卡住。
-     * <p>
-     * 階段 C 加入 JWT 時，這條 chain 會改成：
-     * <pre>
-     *   .sessionManagement(s -&gt; s.sessionCreationPolicy(STATELESS))
-     *   .authorizeHttpRequests(auth -&gt; auth
-     *           .requestMatchers("/api/auth/**").permitAll()
-     *           .anyRequest().authenticated())
-     *   .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-     * </pre>
      */
     @Bean
     @Order(2)
@@ -108,8 +97,10 @@ public class SecurityConfig {
             HttpSecurity http,
             JwtService jwtService,
             CustomUserDetailsService userDetailsService,
-            JwtAuthenticationEntryPoint authenticationEntryPoint) throws Exception {
+            JwtAuthenticationEntryPoint authenticationEntryPoint,
+            CorsConfigurationSource corsConfigurationSource) throws Exception {
         http
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 // JWT 放在 Authorization header，不會被瀏覽器自動夾帶，
                 // 因此不存在 CSRF 的攻擊前提。改回 Cookie 的話這行必須拿掉。
                 .csrf(csrf -> csrf.disable())
