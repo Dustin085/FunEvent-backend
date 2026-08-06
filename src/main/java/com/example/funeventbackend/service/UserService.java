@@ -10,8 +10,10 @@ import com.example.funeventbackend.exception.ResourceNotFoundException;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.UserRepository;
+import com.example.funeventbackend.security.CustomUserDetails;
 import com.example.funeventbackend.security.JwtService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,6 +62,10 @@ public class UserService {
                 user.getRole(),
                 token
         );
+    }
+
+    public UserResponse getCurrentUser(CustomUserDetails principal) {
+        return convertToResponse(principal.getUser());
     }
 
     /**

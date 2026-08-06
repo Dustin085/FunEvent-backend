@@ -1,14 +1,20 @@
 package com.example.funeventbackend.config;
 
+import com.example.funeventbackend.security.CustomUserDetailsService;
+import com.example.funeventbackend.security.JwtAuthenticationEntryPoint;
+import com.example.funeventbackend.security.JwtAuthenticationFilter;
+import com.example.funeventbackend.security.JwtService;
 import org.springframework.boot.security.autoconfigure.web.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * Spring Security 設定。
@@ -98,23 +104,44 @@ public class SecurityConfig {
      */
     @Bean
     @Order(2)
-    public SecurityFilterChain apiSecurityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain apiSecurityFilterChain(
+            HttpSecurity http,
+            JwtService jwtService,
+            CustomUserDetailsService userDetailsService,
+            JwtAuthenticationEntryPoint authenticationEntryPoint) throws Exception {
         http
-                // 這是純 API 後端，之後用 JWT 而非 Cookie 傳遞身分。
-                // CSRF 攻擊的前提是瀏覽器會自動夾帶 Cookie；JWT 放在
-                // Authorization header 需要 JS 主動附加，不會被自動送出，
-                // 因此關掉 CSRF 是合理的。
-                // 但若哪天改回 Cookie/Session，這行就必須拿掉。
+                // JWT 放在 Authorization header，不會被瀏覽器自動夾帶，
+                // 因此不存在 CSRF 的攻擊前提。改回 Cookie 的話這行必須拿掉。
                 .csrf(csrf -> csrf.disable())
 
-                // TODO 階段 C：改成 /api/auth/** 放行、其餘 authenticated()
-                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                // 無狀態：不建立也不使用 HttpSession。
+                // 不設的話 Spring Security 會把 SecurityContext 存進 session，
+                // 等於又變回有狀態，JWT 就失去意義了。
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // 關掉預設的登入表單與 HTTP Basic。前後端分離不需要 Security 產生的登入頁
-                // 不關的話，未授權的請求會被導向 HTML 登入頁或跳出瀏覽器彈窗，
-                // 但 API 應該回傳 401 讓前端自己處理。
+                .authorizeHttpRequests(auth -> auth
+                        // 註冊與登入本來就不可能帶 token
+                        .requestMatchers("/api/auth/**").permitAll()
+                        // 錯誤轉發到 /error 時也會經過授權檢查；
+                        // 未登入的話真正的錯誤會被 401 蓋掉，很難查
+                        .requestMatchers("/error").permitAll()
+                        .anyRequest().authenticated())
+
+                // 未登入時回 401 JSON。不設的話預設是 Http403ForbiddenEntryPoint，
+                // 會回 403 —— 語意錯誤，前端無法據此判斷該不該跳轉登入頁
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint))
+
                 .formLogin(formLogin -> formLogin.disable())
-                .httpBasic(httpBasic -> httpBasic.disable());
+                .httpBasic(httpBasic -> httpBasic.disable())
+
+                // 掛上自己的 filter。刻意在這裡 new 而非用 @Component 注入，
+                // 避免被 Spring Boot 自動註冊到 Tomcat filter 鏈而執行兩次。
+                // 第二個參數只是「位置標記」，即使該 filter 不在 chain 裡也有效。
+                .addFilterBefore(
+                        new JwtAuthenticationFilter(jwtService, userDetailsService),
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
