@@ -6,14 +6,14 @@ import jakarta.validation.constraints.Size;
 
 public record RegisterRequest(
         @NotBlank(message = "Email 不可為空")
-        @Email
+        @Email(message = "Email 格式錯誤")
         String email,
 
         @NotBlank(message = "密碼不可為空")
         @Size(min = 8, message = "密碼至少 8 個字元")
         String password,
 
-        @NotBlank
+        @NotBlank(message = "名字不可為空")
         @Size(max = 50, message = "名字長度不可超過 50 字元")
         String name
 ) {
