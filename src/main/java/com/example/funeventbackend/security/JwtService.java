@@ -2,8 +2,10 @@ package com.example.funeventbackend.security;
 
 import com.example.funeventbackend.model.User;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -12,20 +14,23 @@ import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class JwtService {
     private final SecretKey secretKey;
+    private final Long expiration;
 
-    public JwtService(@Value("${app.jwt.secret}") String secretKey) {
+    public JwtService(@Value("${app.jwt.secret}") String secretKey,
+                      @Value("${app.jwt.expiration}") long expiration) {
         this.secretKey = Keys.hmacShaKeyFor(secretKey.getBytes(StandardCharsets.UTF_8));
+        this.expiration = expiration;
     }
 
     public String generateToken(User user) {
         Date now = new Date();
-        int expiration = 3600000;
         return Jwts.builder()
                 .subject(user.getEmail())
-                .claim("role", user.getRole())
+                .claim("role", user.getRole().name())
                 .issuedAt(now)
                 .expiration(new Date(now.getTime() + expiration))
                 .signWith(secretKey)
@@ -40,7 +45,8 @@ public class JwtService {
                     .parseSignedClaims(token)
                     .getPayload();
             return Optional.of(claims);
-        } catch (Exception e) {
+        } catch (JwtException | IllegalArgumentException e) {
+            log.debug("JWT 解析失敗: {}", e.getMessage());
             return Optional.empty();
         }
     }
