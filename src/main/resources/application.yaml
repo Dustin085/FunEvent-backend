@@ -39,7 +39,7 @@ spring:
 
 app:
   jwt:
-    secret: ${JWT_SECRET}
+    secret: ${JWT_SECRET:dev-only-secret-dsafjdfjieawjfeaidjofasiegnoawjio}
     expiration: 3600000 # 一小時
 
 # ── Log 等級 ──────────────────────────────────────────────────
