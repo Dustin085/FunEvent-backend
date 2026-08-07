@@ -29,6 +29,19 @@ spring:
     # 關掉後 Session 只會保持在一次 Transactional 之中
     open-in-view: false
 
+  # mail setting
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
   # ── H2 Console ─────────────────────────────────────────────
   # 瀏覽器開 http://localhost:8080/h2-console
   # JDBC URL 要填上面那串 jdbc:h2:mem:funevent，帳號 sa、密碼留空
@@ -48,6 +61,9 @@ app:
   # 多個來源用逗號分隔，Spring 會自動切成 List
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000}
+
+  # 前端 URL
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
 
 # ── Log 等級 ──────────────────────────────────────────────────
 logging:

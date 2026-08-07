@@ -1,11 +1,14 @@
 package com.example.funeventbackend.service;
 
+import com.example.funeventbackend.exception.EmailSendException;
 import com.example.funeventbackend.exception.InvalidResetTokenException;
 import com.example.funeventbackend.model.PasswordResetToken;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.PasswordResetTokenRepository;
 import com.example.funeventbackend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,14 +21,28 @@ import java.time.LocalDateTime;
 import java.util.Base64;
 import java.util.Optional;
 
+@Slf4j
 @Service
-@RequiredArgsConstructor
 public class PasswordResetService {
     private final EmailService emailService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private static final String INVALID_TOKEN_MESSAGE = "重設連結無效或已過期";
+    private final String frontendUrl;
+
+    public PasswordResetService(
+            EmailService emailService,
+            PasswordResetTokenRepository passwordResetTokenRepository,
+            UserRepository userRepository,
+            PasswordEncoder passwordEncoder,
+            @Value("${app.frontend-url}") String frontendUrl) {
+        this.emailService = emailService;
+        this.passwordResetTokenRepository = passwordResetTokenRepository;
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.frontendUrl = frontendUrl;
+    }
 
     @Transactional
     public void requestReset(String email) {
@@ -58,11 +75,19 @@ public class PasswordResetService {
                 .build();
         passwordResetTokenRepository.save(passwordResetToken);
         // 寄出信件
-        emailService.sendEmail(
-                email,
-                "重設密碼",
-                "使用這個網址來重設密碼: " + rawToken
-        );
+        String resetLink = frontendUrl + "/reset-password?token=" + rawToken;
+
+        try {
+            emailService.sendEmail(
+                    email,
+                    "重設密碼",
+                    "使用這個網址來重設密碼: " + resetLink
+            );
+        } catch (EmailSendException e) {
+            log.error("重設密碼信寄送失敗 email={}", email, e);
+            // 不讓 EmailSendException 拋到 Controller
+            // 防列舉測 email 是否註冊
+        }
     }
 
     @Transactional
@@ -70,7 +95,7 @@ public class PasswordResetService {
         // 驗證拿到的 rawToken hash 後在資料庫裡面是否有相應的 row
         PasswordResetToken passwordResetToken = passwordResetTokenRepository
                 .findByTokenHash(hashToken(rawToken))
-                .orElseThrow(()->new InvalidResetTokenException(INVALID_TOKEN_MESSAGE));
+                .orElseThrow(() -> new InvalidResetTokenException(INVALID_TOKEN_MESSAGE));
         // 驗證是否過期
         if (LocalDateTime.now().isAfter(passwordResetToken.getExpiresAt())) {
             throw new InvalidResetTokenException(INVALID_TOKEN_MESSAGE);
