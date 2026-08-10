@@ -3,6 +3,7 @@ package com.example.funeventbackend.controller;
 import com.example.funeventbackend.dto.MessageResponse;
 import com.example.funeventbackend.dto.auth.*;
 import com.example.funeventbackend.service.PasswordResetService;
+import com.example.funeventbackend.service.RefreshTokenService;
 import com.example.funeventbackend.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
     private final UserService userService;
     private final PasswordResetService passwordResetService;
+    private final RefreshTokenService refreshTokenService;
 
     @PostMapping("/register")
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -28,6 +30,17 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(userService.login(request));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<MessageResponse> logout(@Valid @RequestBody RefreshTokenRequest request) {
+        refreshTokenService.logout(request.refreshToken());
+        return ResponseEntity.ok(new MessageResponse("已登出"));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return ResponseEntity.ok(userService.refresh(request.refreshToken()));
     }
 
     @PostMapping("/forgot-password")

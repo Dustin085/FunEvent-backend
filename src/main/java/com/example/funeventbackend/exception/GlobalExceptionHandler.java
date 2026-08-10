@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestControllerAdvice
 @Slf4j // logger
@@ -21,12 +20,13 @@ public class GlobalExceptionHandler {
             EmailAlreadyExistsException e,
             HttpServletRequest request
     ) {
+        HttpStatus status = HttpStatus.CONFLICT;
         ErrorResponse response = ErrorResponse.of(
-                HttpStatus.CONFLICT,
+                status,
                 e.getMessage(),
                 request.getRequestURI()
         );
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+        return ResponseEntity.status(status).body(response);
     }
 
     // ResourceNotFoundException
@@ -35,12 +35,13 @@ public class GlobalExceptionHandler {
             ResourceNotFoundException e,
             HttpServletRequest request
     ) {
+        HttpStatus status = HttpStatus.NOT_FOUND;
         ErrorResponse response = ErrorResponse.of(
-                HttpStatus.NOT_FOUND,
+                status,
                 e.getMessage(),
                 request.getRequestURI()
         );
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        return ResponseEntity.status(status).body(response);
     }
 
     // InvalidCredentialsException
@@ -49,12 +50,13 @@ public class GlobalExceptionHandler {
             InvalidCredentialsException e,
             HttpServletRequest request
     ) {
+        HttpStatus status = HttpStatus.UNAUTHORIZED;
         ErrorResponse response = ErrorResponse.of(
-                HttpStatus.UNAUTHORIZED,
+                status,
                 e.getMessage(),
                 request.getRequestURI()
         );
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        return ResponseEntity.status(status).body(response);
     }
 
     // MethodArgumentNotValidException，@Vaild 驗證失敗時拋出
@@ -69,13 +71,14 @@ public class GlobalExceptionHandler {
                         .map(fieldError ->
                                 new ErrorResponse.FieldError(fieldError.getField(), fieldError.getDefaultMessage()))
                         .toList();
+        HttpStatus status = HttpStatus.BAD_REQUEST;
         ErrorResponse response = ErrorResponse.of(
-                HttpStatus.BAD_REQUEST,
+                status,
                 "輸入資料驗證失敗",
                 request.getRequestURI(),
                 fieldErrorList
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(status).body(response);
     }
 
     // InvalidResetTokenException
@@ -84,12 +87,13 @@ public class GlobalExceptionHandler {
             InvalidResetTokenException e,
             HttpServletRequest request
     ){
+        HttpStatus status = HttpStatus.BAD_REQUEST;
         ErrorResponse response = ErrorResponse.of(
-                HttpStatus.BAD_REQUEST,
+                status,
                 e.getMessage(),
                 request.getRequestURI()
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(status).body(response);
     }
 
     @ExceptionHandler(InvalidRefreshTokenException.class)
@@ -97,12 +101,13 @@ public class GlobalExceptionHandler {
             InvalidRefreshTokenException e,
             HttpServletRequest request
     ){
+        HttpStatus status = HttpStatus.UNAUTHORIZED;
         ErrorResponse response = ErrorResponse.of(
-                HttpStatus.UNAUTHORIZED,
+                status,
                 e.getMessage(),
                 request.getRequestURI()
         );
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(status).body(response);
     }
 
     /*

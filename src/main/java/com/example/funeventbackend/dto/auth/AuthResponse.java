@@ -7,6 +7,7 @@ public record AuthResponse(
         String email,
         String name,
         RoleType role,
-        String token
+        String accessToken, // 短效期
+        String refreshToken // 長效期
 ) {
 }

@@ -24,6 +24,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
     @Transactional
     public UserResponse register(RegisterRequest dto) {
@@ -45,7 +46,7 @@ public class UserService {
         return convertToResponse(savedUser);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(LoginRequest dto) {
         // 嘗試使用 email 撈 User，驗證 User 是否存在
         User user = userRepository.findByEmail(dto.email())
@@ -54,13 +55,32 @@ public class UserService {
         if (!passwordEncoder.matches(dto.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException("帳號或密碼錯誤");
         }
-        String token = jwtService.generateToken(user);
+        String accessToken = jwtService.generateToken(user);
+        // 建立新 refresh token family
+        String refreshToken = refreshTokenService.issueNewFamily(user);
         return new AuthResponse(
                 user.getId(),
                 user.getEmail(),
                 user.getName(),
                 user.getRole(),
-                token
+                accessToken,
+                refreshToken
+        );
+    }
+
+    @Transactional
+    public AuthResponse refresh(String refreshToken) {
+        RefreshTokenService.RotationResult rotationResult = refreshTokenService.rotate(refreshToken);
+        User user = rotationResult.user();
+        String accessToken = jwtService.generateToken(user);
+
+        return new AuthResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getName(),
+                user.getRole(),
+                accessToken,
+                rotationResult.rawToken()
         );
     }
 
