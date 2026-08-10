@@ -31,8 +31,8 @@ spring:
 
   # mail setting
   mail:
-    host: ${MAIL_HOST}
-    port: ${MAIL_PORT}
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
     properties:
@@ -51,9 +51,11 @@ spring:
       path: /h2-console
 
 app:
-  jwt:
+  access-token:
     secret: ${JWT_SECRET:dev-only-secret-dsafjdfjieawjfeaidjofasiegnoawjio}
-    expiration: 3600000 # 一小時
+    expiration: 900000 # 15 分鐘
+  refresh-token:
+    expiration: 604800000 # 7 天
 
   # ── CORS ───────────────────────────────────────────────────
   # 允許哪些前端來源讀取本 API 的回應。
