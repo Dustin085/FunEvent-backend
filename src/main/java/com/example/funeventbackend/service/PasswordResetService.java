@@ -6,42 +6,40 @@ import com.example.funeventbackend.model.PasswordResetToken;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.PasswordResetTokenRepository;
 import com.example.funeventbackend.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
+import com.example.funeventbackend.security.TokenGenerator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.LocalDateTime;
-import java.util.Base64;
 import java.util.Optional;
 
 @Slf4j
 @Service
 public class PasswordResetService {
+    private static final String INVALID_TOKEN_MESSAGE = "重設連結無效或已過期";
     private final EmailService emailService;
     private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private static final String INVALID_TOKEN_MESSAGE = "重設連結無效或已過期";
     private final String frontendUrl;
+    private final TokenGenerator tokenGenerator;
 
     public PasswordResetService(
             EmailService emailService,
             PasswordResetTokenRepository passwordResetTokenRepository,
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            @Value("${app.frontend-url}") String frontendUrl) {
+            @Value("${app.frontend-url}") String frontendUrl,
+            TokenGenerator tokenGenerator) {
         this.emailService = emailService;
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.frontendUrl = frontendUrl;
+        this.tokenGenerator = tokenGenerator;
     }
 
     @Transactional
@@ -64,8 +62,8 @@ public class PasswordResetService {
             // 之後正常往下產生新的 token
         });
         // 產生 token，hash token
-        String rawToken = generateRawToken();
-        String tokenHash = hashToken(rawToken);
+        String rawToken = tokenGenerator.generateRawToken();
+        String tokenHash = tokenGenerator.hashToken(rawToken);
         // 存資料庫
         int expirationMin = 15;
         PasswordResetToken passwordResetToken = PasswordResetToken.builder()
@@ -94,7 +92,7 @@ public class PasswordResetService {
     public void resetPassword(String rawToken, String newPassword) {
         // 驗證拿到的 rawToken hash 後在資料庫裡面是否有相應的 row
         PasswordResetToken passwordResetToken = passwordResetTokenRepository
-                .findByTokenHash(hashToken(rawToken))
+                .findByTokenHash(tokenGenerator.hashToken(rawToken))
                 .orElseThrow(() -> new InvalidResetTokenException(INVALID_TOKEN_MESSAGE));
         // 驗證是否過期
         if (LocalDateTime.now().isAfter(passwordResetToken.getExpiresAt())) {
@@ -114,24 +112,5 @@ public class PasswordResetService {
         // 存入資料庫
         passwordResetTokenRepository.save(passwordResetToken);
         userRepository.save(user);
-    }
-
-    private String generateRawToken() {
-        byte[] randomBytes = new byte[32];// 32 bytes，「隨機性」在電腦裡的自然單位是位元（bit）
-        new SecureRandom().nextBytes(randomBytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes);
-    }
-
-    private String hashToken(String rawToken) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(rawToken.getBytes(StandardCharsets.UTF_8));
-            return Base64.getEncoder().encodeToString(hash);
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 是 JVM 保證一定支援的演算法（Java 規範明文規定），
-            // 這個 catch 分支理論上永遠不會被執行——
-            // 但 API 簽章上是 checked exception，還是得處理
-            throw new IllegalStateException("SHA-256 不可用", e);
-        }
     }
 }

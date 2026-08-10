@@ -92,6 +92,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
     }
 
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidRefreshTokenException(
+            InvalidRefreshTokenException e,
+            HttpServletRequest request
+    ){
+        ErrorResponse response = ErrorResponse.of(
+                HttpStatus.UNAUTHORIZED,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+    }
+
     /*
      *  非預期例外 (Exception)
      * */
