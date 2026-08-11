@@ -3,6 +3,7 @@ package com.example.funeventbackend.exception;
 import com.example.funeventbackend.dto.error.ErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -96,6 +97,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(response);
     }
 
+    // InvalidRefreshTokenException，無效 refresh token
     @ExceptionHandler(InvalidRefreshTokenException.class)
     public ResponseEntity<ErrorResponse> handleInvalidRefreshTokenException(
             InvalidRefreshTokenException e,
@@ -107,6 +109,18 @@ public class GlobalExceptionHandler {
                 e.getMessage(),
                 request.getRequestURI()
         );
+        return ResponseEntity.status(status).body(response);
+    }
+
+    // DataIntegrityViolationException，違反資料完整性約束
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+            DataIntegrityViolationException e,
+            HttpServletRequest request
+    ) {
+        log.warn("資料完整性約束被觸發 [{}]", request.getRequestURI(), e);
+        HttpStatus status = HttpStatus.CONFLICT;
+        ErrorResponse response = ErrorResponse.of(status, "資料重複或違反限制", request.getRequestURI());
         return ResponseEntity.status(status).body(response);
     }
 
