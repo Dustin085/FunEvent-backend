@@ -8,7 +8,15 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.Instant;
 
 @Entity
-@Table(name = "events")
+@Table(
+        name = "events",
+        check = {
+                @CheckConstraint(
+                        name = "ck_events_end_after_start",
+                        constraint = "end_at > start_at"
+                )
+        }
+)
 @Getter
 @Setter
 @NoArgsConstructor
