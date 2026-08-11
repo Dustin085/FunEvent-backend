@@ -97,6 +97,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(response);
     }
 
+    // InvalidEventDataException
+    @ExceptionHandler(InvalidEventDataException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidEventDataException(
+            InvalidEventDataException e,
+            HttpServletRequest request
+    ){
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        ErrorResponse response = ErrorResponse.of(
+                status,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
     // InvalidRefreshTokenException，無效 refresh token
     @ExceptionHandler(InvalidRefreshTokenException.class)
     public ResponseEntity<ErrorResponse> handleInvalidRefreshTokenException(
@@ -121,6 +136,36 @@ public class GlobalExceptionHandler {
         log.warn("資料完整性約束被觸發 [{}]", request.getRequestURI(), e);
         HttpStatus status = HttpStatus.CONFLICT;
         ErrorResponse response = ErrorResponse.of(status, "資料重複或違反限制", request.getRequestURI());
+        return ResponseEntity.status(status).body(response);
+    }
+
+    // OrganizerAlreadyExistsException
+    @ExceptionHandler(OrganizerAlreadyExistsException.class)
+    public ResponseEntity<ErrorResponse> handleOrganizerAlreadyExistsException(
+            OrganizerAlreadyExistsException e,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.CONFLICT;
+        ErrorResponse response = ErrorResponse.of(
+                status,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
+    // NotOrganizerException
+    @ExceptionHandler(NotOrganizerException.class)
+    public ResponseEntity<ErrorResponse> handleNotOrganizerException(
+            NotOrganizerException e,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.FORBIDDEN;
+        ErrorResponse response = ErrorResponse.of(
+                status,
+                e.getMessage(),
+                request.getRequestURI()
+        );
         return ResponseEntity.status(status).body(response);
     }
 

@@ -32,7 +32,7 @@ public class Event {
     private Organizer organizer;
 
     @Column(nullable = false)
-    private String title;
+    private String name;
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String description;
