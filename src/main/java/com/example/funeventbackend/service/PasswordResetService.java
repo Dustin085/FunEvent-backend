@@ -13,7 +13,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 @Slf4j
@@ -54,7 +55,7 @@ public class PasswordResetService {
         // 檢查是否已有可用 token
         Optional<PasswordResetToken> optionalValidToken =
                 passwordResetTokenRepository
-                        .findByUserAndUsedFalseAndExpiresAtAfter(user, LocalDateTime.now());
+                        .findByUserAndUsedFalseAndExpiresAtAfter(user, Instant.now());
         // 已有有效 token -> 作廢舊的 TODO 做 rate limiting 防止寄信被濫用
         optionalValidToken.ifPresent(old -> {
             old.setUsed(true);
@@ -65,11 +66,11 @@ public class PasswordResetService {
         String rawToken = tokenGenerator.generateRawToken();
         String tokenHash = tokenGenerator.hashToken(rawToken);
         // 存資料庫
-        int expirationMin = 15;
+        int expiration = 15 * 60 * 1000;
         PasswordResetToken passwordResetToken = PasswordResetToken.builder()
                 .tokenHash(tokenHash)
                 .user(user)
-                .expiresAt(LocalDateTime.now().plusMinutes(expirationMin))
+                .expiresAt(Instant.now().plus(expiration, ChronoUnit.MILLIS))
                 .build();
         passwordResetTokenRepository.save(passwordResetToken);
         // 寄出信件
@@ -95,7 +96,7 @@ public class PasswordResetService {
                 .findByTokenHash(tokenGenerator.hashToken(rawToken))
                 .orElseThrow(() -> new InvalidResetTokenException(INVALID_TOKEN_MESSAGE));
         // 驗證是否過期
-        if (LocalDateTime.now().isAfter(passwordResetToken.getExpiresAt())) {
+        if (Instant.now().isAfter(passwordResetToken.getExpiresAt())) {
             throw new InvalidResetTokenException(INVALID_TOKEN_MESSAGE);
         }
         // 驗證是否使用過

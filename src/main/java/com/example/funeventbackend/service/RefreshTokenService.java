@@ -9,7 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
@@ -43,7 +43,7 @@ public class RefreshTokenService {
         RefreshToken refreshToken = RefreshToken.builder()
                 .user(user)
                 .familyId(UUID.randomUUID())
-                .expiresAt(LocalDateTime.now().plus(expiration, ChronoUnit.MILLIS))
+                .expiresAt(Instant.now().plus(expiration, ChronoUnit.MILLIS))
                 .tokenHash(tokenHash)
                 .build();
         // 存入資料庫
@@ -65,7 +65,7 @@ public class RefreshTokenService {
             throw new InvalidRefreshTokenException(INVALID_TOKEN_MESSAGE);
         }
         // 檢查 token 是否已過期
-        if (LocalDateTime.now().isAfter(refreshToken.getExpiresAt())) {
+        if (Instant.now().isAfter(refreshToken.getExpiresAt())) {
             throw new InvalidRefreshTokenException(INVALID_TOKEN_MESSAGE);
         }
         // 修改舊 token(標記已使用)
@@ -77,7 +77,7 @@ public class RefreshTokenService {
                 .user(refreshToken.getUser())
                 .familyId(refreshToken.getFamilyId())
                 // 每次換票重新建立七天有效期
-                .expiresAt(LocalDateTime.now().plus(expiration, ChronoUnit.MILLIS))
+                .expiresAt(Instant.now().plus(expiration, ChronoUnit.MILLIS))
                 .tokenHash(newTokenHash)
                 .build();
         // 存入資料庫
