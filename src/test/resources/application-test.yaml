@@ -1,0 +1,24 @@
+# 測試專用覆寫。搭配 @ActiveProfiles("test") 使用，
+# 會疊在 application.yaml 之上（不是取代），只覆蓋這裡有寫的項目。
+# 注意：若命名成 application.yaml 會整個蓋掉主設定，app.* 那些屬性會全部消失。
+spring:
+  datasource:
+    # 跟開發用的 funevent 分開，避免測試資料污染 h2-console 看到的那個庫
+    url: jdbc:h2:mem:funevent-test;DB_CLOSE_DELAY=-1
+  jpa:
+    hibernate:
+      # 測試結束就把 schema 丟掉
+      ddl-auto: create-drop
+    show-sql: false
+  mail:
+    # 測試不會真的寄信，填假的只是為了讓容器啟動得起來
+    # （主設定的 ${MAIL_USERNAME} 沒有預設值，解不開會導致啟動失敗）
+    username: test@example.com
+    password: test
+  h2:
+    console:
+      enabled: false
+
+logging:
+  level:
+    org.hibernate.orm.jdbc.bind: warn
