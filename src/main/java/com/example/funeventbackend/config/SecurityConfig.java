@@ -4,6 +4,7 @@ import com.example.funeventbackend.security.CustomUserDetailsService;
 import com.example.funeventbackend.security.JwtAuthenticationEntryPoint;
 import com.example.funeventbackend.security.JwtAuthenticationFilter;
 import com.example.funeventbackend.security.JwtService;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.security.autoconfigure.web.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -62,9 +63,16 @@ public class SecurityConfig {
      *       沒被選中的請求會往下一條 chain 找。</li>
      *   <li>{@code requestMatchers} —— chain 接手之後，決定「這個路徑需要什麼權限」。</li>
      * </ul>
+     * <p>
+     * {@code @ConditionalOnProperty} 不是可有可無的：{@code PathRequest.toH2Console()}
+     * 回傳的 matcher 是在「比對每一個請求」時才去容器裡拿 {@code H2ConsoleProperties}，
+     * 而那個 bean 只在 {@code spring.h2.console.enabled=true} 時才存在。
+     * 少了這個條件，只要 console 被關掉（正式環境一定要關），這條 {@code @Order(1)}
+     * 的 chain 仍然會攔下每一個請求，然後全部炸成 500 —— 而且啟動時毫無徵兆。
      */
     @Bean
     @Order(1)  // 數字小的先比對，必須排在下面那條 anyRequest 的 chain 前面
+    @ConditionalOnProperty(name = "spring.h2.console.enabled", havingValue = "true")
     public SecurityFilterChain h2ConsoleSecurityFilterChain(HttpSecurity http) throws Exception {
         http
                 // PathRequest.toH2Console() 會自動讀取 application.yaml 的

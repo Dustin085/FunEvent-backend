@@ -15,6 +15,9 @@ spring:
     # （主設定的 ${MAIL_USERNAME} 沒有預設值，解不開會導致啟動失敗）
     username: test@example.com
     password: test
+  # 測試不需要 console。順帶讓測試持續守住一件事：
+  # console 關掉時，SecurityConfig 的 h2ConsoleSecurityFilterChain 必須跟著消失，
+  # 否則每個請求都會因為找不到 H2ConsoleProperties 而 500。
   h2:
     console:
       enabled: false
