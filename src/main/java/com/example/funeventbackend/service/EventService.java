@@ -12,6 +12,7 @@ import com.example.funeventbackend.model.EventStatus;
 import com.example.funeventbackend.model.Organizer;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.EventRepository;
+import com.example.funeventbackend.repository.TicketTypeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,9 @@ public class EventService {
     private static final String EVENT_ACCESS_DENIED_MESSAGE = "沒有讀寫此活動的權限";
     private final EventRepository eventRepository;
     private final OrganizerService organizerService;
+    // 只需要「有沒有票種」這個查詢，依賴 Repository 而非 TicketTypeService，
+    // 否則兩個 Service 互相注入會造成循環依賴
+    private final TicketTypeRepository ticketTypeRepository;
 
     @Transactional
     public EventResponse create(User user, CreateEventRequest dto) {
@@ -48,6 +52,12 @@ public class EventService {
 
     @Transactional(readOnly = true)
     public EventResponse findById(Long id) {
+        return EventResponse.from(getPublishedEntity(id));
+    }
+
+    // 給其他 Service 用：只回傳已公開的活動，否則一律 404（不洩漏存在性）
+    @Transactional(readOnly = true)
+    public Event getPublishedEntity(Long id) {
         Event event = eventRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE));
 
@@ -55,7 +65,16 @@ public class EventService {
             throw new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE);
         }
 
-        return EventResponse.from(event);
+        return event;
+    }
+
+    // 給其他 Service 用：撈出活動並確認擁有權
+    @Transactional(readOnly = true)
+    public Event getOwnedEntity(User user, Long eventId) {
+        Event event = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE));
+        assertOwnedBy(user, event);
+        return event;
     }
 
     @Transactional
@@ -92,7 +111,10 @@ public class EventService {
         if (event.getStatus() != EventStatus.DRAFT) {
             throw new InvalidStateTransitionException("活動不在可發布狀態");
         }
-        // TODO: 等 TicketTypeRepository 建好後補上「至少要有一個票種」
+        // 至少要有一個票種
+        if (!ticketTypeRepository.existsByEventId(eventId)) {
+            throw new InvalidStateTransitionException("活動至少要有一個票種才能發布");
+        }
         // 開始時間還沒過
         if (event.getStartAt().isBefore(Instant.now())) {
             throw new InvalidStateTransitionException("活動開始時間已過，無法發布");
