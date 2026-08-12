@@ -8,6 +8,7 @@ import org.springframework.boot.security.autoconfigure.web.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -117,6 +118,8 @@ public class SecurityConfig {
                         // 錯誤轉發到 /error 時也會經過授權檢查；
                         // 未登入的話真正的錯誤會被 401 蓋掉，很難查
                         .requestMatchers("/error").permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/**").permitAll()
                         .anyRequest().authenticated())
 
                 // 未登入時回 401 JSON。不設的話預設是 Http403ForbiddenEntryPoint，
