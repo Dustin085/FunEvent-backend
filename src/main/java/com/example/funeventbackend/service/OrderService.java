@@ -5,17 +5,13 @@ import com.example.funeventbackend.dto.order.OrderResponse;
 import com.example.funeventbackend.exception.InsufficientStockException;
 import com.example.funeventbackend.exception.InvalidStateTransitionException;
 import com.example.funeventbackend.exception.ResourceNotFoundException;
-import com.example.funeventbackend.model.Event;
-import com.example.funeventbackend.model.EventStatus;
-import com.example.funeventbackend.model.Order;
-import com.example.funeventbackend.model.OrderItem;
-import com.example.funeventbackend.model.OrderStatusType;
-import com.example.funeventbackend.model.TicketType;
-import com.example.funeventbackend.model.User;
+import com.example.funeventbackend.model.*;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +27,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class OrderService {
     private static final String TICKET_TYPE_NOT_FOUND_MESSAGE = "找不到部分票種";
+    private static final String ORDER_NOT_FOUND_MESSAGE = "找不到此訂單";
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -84,9 +81,24 @@ public class OrderService {
                 .totalAmount(totalAmount)
                 .status(OrderStatusType.PENDING)
                 .build());
-        orderItems.forEach(orderItem -> orderItem.setOrder(order));
+        orderItems.forEach(order::addOrderItem);
 
         return OrderResponse.from(order, orderItemRepository.saveAll(orderItems));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<OrderResponse> findByUser(User user, Pageable pageable) {
+        return orderRepository.findByUser(user, pageable)
+                .map(order -> OrderResponse.from(order, order.getOrderItems()));
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponse findByIdAndUser(User user, Long orderId) {
+        // 查詢條件已包含 user，所以「訂單不存在」和「訂單不是你的」都會走到這個 404。
+        // 訂單是私有資源，回 403 等於證實了這個 id 存在，可被用來探測訂單量。
+        Order order = orderRepository.findByIdAndUser(orderId, user)
+                .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_MESSAGE));
+        return OrderResponse.from(order, order.getOrderItems());
     }
 
     private void validatePurchasable(TicketType ticketType, Instant now) {
