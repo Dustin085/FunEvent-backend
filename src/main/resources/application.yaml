@@ -67,6 +67,21 @@ app:
   # 前端 URL
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
 
+  # ── 金流 ───────────────────────────────────────────────────
+  payment:
+    # 預設 fake：測試與本機開發不需要真的金鑰。
+    # ⚠️ 假閘道不驗簽，正式環境務必改成 ecpay
+    gateway: ${PAYMENT_GATEWAY:fake}
+    ecpay:
+      # 這三個是綠界公開的測試環境值，正式金鑰一定要走環境變數
+      merchant-id: ${ECPAY_MERCHANT_ID:3002607}
+      hash-key: ${ECPAY_HASH_KEY:pwFHCqoQZGmho4w6}
+      hash-iv: ${ECPAY_HASH_IV:EkRm7iFT261dpevs}
+      # 測試環境是 payment-stage，正式環境是 payment
+      api-url: ${ECPAY_API_URL:https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5}
+      # 綠界伺服器打回來的網址，必須是公開可連的（本機開發要用 ngrok 之類的通道）
+      return-url: ${ECPAY_RETURN_URL:}
+
 # ── Log 等級 ──────────────────────────────────────────────────
 logging:
   level:
