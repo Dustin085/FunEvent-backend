@@ -45,7 +45,7 @@ public class PaymentController {
      * <p>
      * 回應必須是金流商指定的純文字格式，收不到就會不斷重送。
      */
-    @PostMapping(value = "/callback", produces = MediaType.TEXT_PLAIN_VALUE)
+    @PostMapping(value = "/callback")
     public ResponseEntity<String> callback(@RequestParam Map<String, String> params) {
         PaymentCallbackOutcome outcome = paymentService.handleCallback(params);
         // 四種結果都要回成功給金流商，但要留下我們這邊實際做了什麼

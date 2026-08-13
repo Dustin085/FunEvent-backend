@@ -1,0 +1,521 @@
+{
+  "info": {
+    "name": "FunEvent 後端完整流程",
+    "description": "註冊 → 登入 → 主辦者 → 活動 → 票種 → 發布 → 下單 → 付款 → 查詢。\n\n用法：直接按 Collection 右上的 Run 一次跑完。每次執行會自動產生新的 email，不會撞到 409。\n\n步驟 9（假回呼）只在 app.payment.gateway=fake 時有效；接綠界時請跳過它，改用步驟 8 印出的 HTML 表單。",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "password",
+      "value": "password123"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. 註冊",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// 每次執行都用新的 email，避免撞到 409 EmailAlreadyExists",
+              "pm.collectionVariables.set('email', `buyer${Date.now()}@example.com`);"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "pm.test('回應不含密碼雜湊', () => {",
+              "    pm.expect(pm.response.json()).to.not.have.property('passwordHash');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"name\": \"測試使用者\"\n}"
+        },
+        "url": "{{baseUrl}}/api/auth/register"
+      }
+    },
+    {
+      "name": "2. 登入",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('accessToken', body.accessToken);",
+              "pm.collectionVariables.set('refreshToken', body.refreshToken);",
+              "pm.test('拿到兩個 token', () => {",
+              "    pm.expect(body.accessToken).to.be.a('string');",
+              "    pm.expect(body.refreshToken).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": "{{baseUrl}}/api/auth/login"
+      }
+    },
+    {
+      "name": "3. 成為主辦者",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "pm.collectionVariables.set('organizerId', pm.response.json().id);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman 測試主辦單位\",\n  \"introduction\": \"由 Postman 腳本建立\"\n}"
+        },
+        "url": "{{baseUrl}}/api/organizers"
+      }
+    },
+    {
+      "name": "4. 建立活動（DRAFT）",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// 時間一律相對於現在，腳本才不會因為寫死日期而在未來失效",
+              "const DAY = 24 * 60 * 60 * 1000;",
+              "pm.collectionVariables.set('startAt', new Date(Date.now() + 30 * DAY).toISOString());",
+              "pm.collectionVariables.set('endAt', new Date(Date.now() + 31 * DAY).toISOString());"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('eventId', body.id);",
+              "pm.test('新建活動應為 DRAFT', () => pm.expect(body.status).to.eql('DRAFT'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman 測試活動\",\n  \"description\": \"由腳本自動建立\",\n  \"startAt\": \"{{startAt}}\",\n  \"endAt\": \"{{endAt}}\",\n  \"locationName\": \"測試場地\",\n  \"address\": \"台北市測試路 1 號\"\n}"
+        },
+        "url": "{{baseUrl}}/api/events"
+      }
+    },
+    {
+      "name": "4b. 草稿活動不該被公開查到（預期 404）",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('未發布活動回 404，不洩漏存在性', () => pm.response.to.have.status(404));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "url": "{{baseUrl}}/api/events/{{eventId}}"
+      }
+    },
+    {
+      "name": "5. 建立票種",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('ticketTypeId', body.id);",
+              "pm.test('stock 由後端設成 capacity', () => pm.expect(body.stock).to.eql(50));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"早鳥票\",\n  \"description\": \"Postman 腳本建立\",\n  \"price\": 500,\n  \"capacity\": 50\n}"
+        },
+        "url": "{{baseUrl}}/api/events/{{eventId}}/ticket-types"
+      }
+    },
+    {
+      "name": "6. 發布活動",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('狀態變成 PUBLISHED', () => pm.expect(pm.response.json().status).to.eql('PUBLISHED'));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "url": "{{baseUrl}}/api/events/{{eventId}}/publish"
+      }
+    },
+    {
+      "name": "6b. 重複發布（預期 409）",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('重複發布回 409', () => pm.response.to.have.status(409));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "PATCH",
+        "url": "{{baseUrl}}/api/events/{{eventId}}/publish"
+      }
+    },
+    {
+      "name": "7. 下單",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('orderId', body.id);",
+              "pm.test('狀態為 PENDING', () => pm.expect(body.status).to.eql('PENDING'));",
+              "pm.test('總金額 = 500 x 2', () => pm.expect(Number(body.totalAmount)).to.eql(1000));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    { \"ticketTypeId\": {{ticketTypeId}}, \"quantity\": 2 }\n  ]\n}"
+        },
+        "url": "{{baseUrl}}/api/orders"
+      }
+    },
+    {
+      "name": "8. 建立付款",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('201 Created', () => pm.response.to.have.status(201));",
+              "const body = pm.response.json();",
+              "pm.collectionVariables.set('merchantTradeNo', body.merchantTradeNo);",
+              "pm.collectionVariables.set('paymentUrl', body.paymentUrl);",
+              "",
+              "// 綠界走「前端表單 POST」，Postman 沒辦法幫你跳過去。",
+              "// 這裡把 formFields 組成可直接存檔開啟的 HTML，印在 Console 讓你複製。",
+              "const fields = body.formFields || {};",
+              "if (Object.keys(fields).length > 0) {",
+              "    const escape = (s) => String(s).replace(/&/g, '&amp;').replace(/\"/g, '&quot;');",
+              "    const inputs = Object.entries(fields)",
+              "        .map(([k, v]) => `  <input type=\"hidden\" name=\"${escape(k)}\" value=\"${escape(v)}\">`)",
+              "        .join('\\n');",
+              "    const html = [",
+              "        '<!doctype html><meta charset=\"utf-8\">',",
+              "        `<form id=\"f\" method=\"post\" action=\"${escape(body.paymentUrl)}\">`,",
+              "        inputs,",
+              "        '</form>',",
+              "        '<script>document.getElementById(\"f\").submit()<\\/script>'",
+              "    ].join('\\n');",
+              "    pm.collectionVariables.set('ecpayHtml', html);",
+              "    console.log('=== 存成 .html 用瀏覽器開啟即可跳到綠界 ===');",
+              "    console.log(html);",
+              "} else {",
+              "    console.log('formFields 是空的 → 目前是假閘道，直接跑步驟 9');",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": {{orderId}}\n}"
+        },
+        "url": "{{baseUrl}}/api/payments"
+      }
+    },
+    {
+      "name": "9. 模擬回呼（僅限假閘道）",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('必須回 1|OK，否則金流商會不斷重送', () => {",
+              "    pm.expect(pm.response.text()).to.eql('1|OK');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "merchantTradeNo",
+              "value": "{{merchantTradeNo}}"
+            },
+            {
+              "key": "amount",
+              "value": "1000.00"
+            },
+            {
+              "key": "success",
+              "value": "1"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/payments/callback"
+      }
+    },
+    {
+      "name": "9b. 重送同一筆回呼（驗證冪等）",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('重送一樣回 1|OK', () => {",
+              "    pm.response.to.have.status(200);",
+              "    pm.expect(pm.response.text()).to.eql('1|OK');",
+              "});",
+              "console.log('後端 log 應出現「重複的付款回呼，已忽略」');"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            {
+              "key": "merchantTradeNo",
+              "value": "{{merchantTradeNo}}"
+            },
+            {
+              "key": "amount",
+              "value": "1000.00"
+            },
+            {
+              "key": "success",
+              "value": "1"
+            }
+          ]
+        },
+        "url": "{{baseUrl}}/api/payments/callback"
+      }
+    },
+    {
+      "name": "10. 查詢單筆訂單（應為 PAID）",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('訂單已付款', () => pm.expect(body.status).to.eql('PAID'));",
+              "pm.test('明細有快照的票種名稱', () => {",
+              "    pm.expect(body.items[0].ticketTypeName).to.be.a('string');",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/orders/{{orderId}}"
+      }
+    },
+    {
+      "name": "11. 我的訂單列表",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "const body = pm.response.json();",
+              "pm.test('PagedModel 結構', () => {",
+              "    pm.expect(body).to.have.property('content');",
+              "    pm.expect(body).to.have.property('page');",
+              "});",
+              "pm.test('至少一筆訂單', () => pm.expect(body.content.length).to.be.above(0));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/api/orders/me?page=0&size=20"
+      }
+    },
+    {
+      "name": "12. 庫存已被扣（應剩 48）",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('200 OK', () => pm.response.to.have.status(200));",
+              "pm.test('50 - 2 = 48', () => pm.expect(pm.response.json()[0].stock).to.eql(48));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "url": "{{baseUrl}}/api/events/{{eventId}}/ticket-types"
+      }
+    }
+  ]
+}
