@@ -45,6 +45,23 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(response);
     }
 
+    // InvalidPaymentCallbackException
+    @ExceptionHandler(InvalidPaymentCallbackException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidPaymentCallbackException(
+            InvalidPaymentCallbackException e,
+            HttpServletRequest request
+    ) {
+        // 回呼端點對外開放，驗簽失敗可能代表有人在嘗試偽造付款 —— 一律留下紀錄
+        log.warn("付款回呼被拒絕 [{}]：{}", request.getRequestURI(), e.getMessage());
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        ErrorResponse response = ErrorResponse.of(
+                status,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
     // InsufficientStockException
     @ExceptionHandler(InsufficientStockException.class)
     public ResponseEntity<ErrorResponse> handleInsufficientStockException(

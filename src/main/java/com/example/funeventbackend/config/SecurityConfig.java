@@ -128,6 +128,11 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/**").permitAll()
+
+                        // 金流商的伺服器不會帶我們的 JWT，只能開放。
+                        // ⚠️ 這條路徑等於對全世界開放，安全性 100% 依賴
+                        // PaymentGateway.parseCallback 的驗簽 —— 那裡不能有任何例外。
+                        .requestMatchers(HttpMethod.POST, "/api/payments/callback").permitAll()
                         .anyRequest().authenticated())
 
                 // 未登入時回 401 JSON。不設的話預設是 Http403ForbiddenEntryPoint，
