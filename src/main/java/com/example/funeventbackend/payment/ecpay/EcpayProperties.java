@@ -14,6 +14,7 @@ public record EcpayProperties(
         String hashKey,
         String hashIv,
         String apiUrl,
-        String returnUrl
+        String returnUrl,
+        String clientBackUrl
 ) {
 }

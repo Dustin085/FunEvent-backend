@@ -75,6 +75,11 @@ public class EcpayPaymentGateway implements PaymentGateway {
         params.put("ReturnURL", properties.returnUrl());
         params.put("ChoosePayment", "Credit");
         params.put("EncryptType", "1");
+        // 綠界付款頁上「返回商店」按鈕要導去的位置。沒有它，使用者付完款
+        // 會停在綠界的頁面，不知道該回哪裡。
+        // ⚠️ 這只是瀏覽器導頁，跟付款結果沒有因果關係 ——
+        // 使用者可以完全沒付款就按返回，所以訂單狀態一律以回呼寫入的為準。
+        params.put("ClientBackURL", properties.clientBackUrl() + "/orders/" + order.getId());
 
         params.put("CheckMacValue",
                 CheckMacValueCalculator.calculate(params, properties.hashKey(), properties.hashIv()));
