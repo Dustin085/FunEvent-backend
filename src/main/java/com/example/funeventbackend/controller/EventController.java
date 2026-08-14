@@ -2,11 +2,16 @@ package com.example.funeventbackend.controller;
 
 import com.example.funeventbackend.dto.event.CreateEventRequest;
 import com.example.funeventbackend.dto.event.EventResponse;
+import com.example.funeventbackend.dto.event.EventSummaryResponse;
 import com.example.funeventbackend.dto.event.UpdateEventRequest;
 import com.example.funeventbackend.security.CustomUserDetails;
 import com.example.funeventbackend.service.EventService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.PagedModel;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -41,6 +46,15 @@ public class EventController {
             @PathVariable Long id
     ) {
         return ResponseEntity.status(HttpStatus.OK).body(eventService.publish(principal.getUser(), id));
+    }
+
+    @GetMapping
+    public ResponseEntity<PagedModel<EventSummaryResponse>> list(
+            @PageableDefault(size = 12, sort = "startAt", direction = Sort.Direction.ASC)
+            Pageable pageable
+    ) {
+        // size=12 好排格線；依 startAt 升冪 =「即將登場」，售票網站的預設語意
+        return ResponseEntity.ok(new PagedModel<>(eventService.findPublished(pageable)));
     }
 
     @GetMapping("/{id}")

@@ -58,8 +58,8 @@ public class PasswordResetService {
                         .findByUserAndUsedFalseAndExpiresAtAfter(user, Instant.now());
         // 已有有效 token -> 作廢舊的 TODO 做 rate limiting 防止寄信被濫用
         optionalValidToken.ifPresent(old -> {
+            // old 是交易內撈出的 managed entity，髒檢查會自動寫入，不需要 save()
             old.setUsed(true);
-            passwordResetTokenRepository.save(old);
             // 之後正常往下產生新的 token
         });
         // 產生 token，hash token
@@ -110,8 +110,7 @@ public class PasswordResetService {
         user.setPasswordHash(passwordHash);
         // token 設定成 used = true
         passwordResetToken.setUsed(true);
-        // 存入資料庫
-        passwordResetTokenRepository.save(passwordResetToken);
-        userRepository.save(user);
+        // 兩者都是 managed entity（user 是從 token 的關聯取得，同一個持久化上下文），
+        // 髒檢查會在提交時各發一句 UPDATE，不需要 save()
     }
 }

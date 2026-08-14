@@ -80,8 +80,8 @@ public class RefreshTokenService {
                 .expiresAt(Instant.now().plus(expiration, ChronoUnit.MILLIS))
                 .tokenHash(newTokenHash)
                 .build();
-        // 存入資料庫
-        // Hibernate dirty check 會自動 save(refreshToken)
+        // 只有新 token 需要 save（transient → 要靠它拿到 id）；
+        // 舊 token 的 used = true 由髒檢查處理
         refreshTokenRepository.save(newRefreshtoken);
         // 回傳結果
         User user = newRefreshtoken.getUser();

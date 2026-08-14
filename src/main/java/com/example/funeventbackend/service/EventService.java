@@ -2,6 +2,7 @@ package com.example.funeventbackend.service;
 
 import com.example.funeventbackend.dto.event.CreateEventRequest;
 import com.example.funeventbackend.dto.event.EventResponse;
+import com.example.funeventbackend.dto.event.EventSummaryResponse;
 import com.example.funeventbackend.dto.event.UpdateEventRequest;
 import com.example.funeventbackend.exception.InvalidEventDataException;
 import com.example.funeventbackend.exception.InvalidStateTransitionException;
@@ -14,6 +15,8 @@ import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +51,14 @@ public class EventService {
         // 存入資料庫
         Event savedEvent = eventRepository.save(newEvent);
         return EventResponse.from(savedEvent);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<EventSummaryResponse> findPublished(Pageable pageable) {
+        // 已開始的活動買不到票（validatePurchasable 會擋），列出來只會誤導使用者
+        return eventRepository
+                .findByStatusAndStartAtAfter(EventStatus.PUBLISHED, Instant.now(), pageable)
+                .map(EventSummaryResponse::from);
     }
 
     @Transactional(readOnly = true)
@@ -94,9 +105,9 @@ public class EventService {
         event.setEndAt(dto.endAt());
         event.setLocationName(dto.locationName());
         event.setAddress(dto.address());
-        // 存入資料庫
-        Event savedEvent = eventRepository.save(event);
-        return EventResponse.from(savedEvent);
+        // 不需要 save()：event 是交易內撈出的 managed entity，
+        // 提交時髒檢查會自動發出 UPDATE。create 才需要 save（新物件要靠它拿到 id）
+        return EventResponse.from(event);
     }
 
     @Transactional
@@ -119,11 +130,9 @@ public class EventService {
         if (event.getStartAt().isBefore(Instant.now())) {
             throw new InvalidStateTransitionException("活動開始時間已過，無法發布");
         }
-        // 修改 status
+        // 修改 status。event 是 managed entity，髒檢查會在提交時寫入，不需要 save()
         event.setStatus(EventStatus.PUBLISHED);
-        // 存 DB
-        Event savedEvent = eventRepository.save(event);
-        return EventResponse.from(savedEvent);
+        return EventResponse.from(event);
     }
 
     private void validateEventDates(Instant startAt, Instant endAt) {

@@ -1,5 +1,6 @@
 package com.example.funeventbackend.controller;
 
+import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -194,6 +196,52 @@ class PurchaseFlowApiTest {
 
         assertEquals(1, orderRepository.count());
         assertEquals(1, orderItemRepository.count());
+    }
+
+    @Test
+    @DisplayName("更新活動的變更確實寫進資料庫（沒有 save() 也要靠髒檢查落地）")
+    void updatingEventPersistsWithoutExplicitSave() throws Exception {
+        String token = registerAndLogin(ORGANIZER_EMAIL, "主辦者");
+        mockMvc.perform(post("/api/organizers")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "測試主辦單位" }
+                                """))
+                .andExpect(status().isCreated());
+        String eventBody = mockMvc.perform(post("/api/events")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createEventBody()))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        long eventId = readLong(eventBody, "$.id");
+
+        mockMvc.perform(put("/api/events/{id}", eventId)
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "改過的活動名稱",
+                                  "description": "改過的介紹",
+                                  "startAt": "%s",
+                                  "endAt": "%s",
+                                  "locationName": "改過的場地",
+                                  "address": "改過的地址"
+                                }
+                                """.formatted(
+                                Instant.now().plus(40, ChronoUnit.DAYS),
+                                Instant.now().plus(41, ChronoUnit.DAYS))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("改過的活動名稱"));
+
+        // 直接讀資料庫，不看回應 —— 回應可能只反映記憶體中的物件，
+        // 真正要驗的是交易提交後 DB 裡的值
+        Event reloaded = eventRepository.findById(eventId).orElseThrow();
+        assertEquals("改過的活動名稱", reloaded.getName());
+        assertEquals("改過的介紹", reloaded.getDescription());
+        assertEquals("改過的場地", reloaded.getLocationName());
+        assertEquals("改過的地址", reloaded.getAddress());
     }
 
     @Test
