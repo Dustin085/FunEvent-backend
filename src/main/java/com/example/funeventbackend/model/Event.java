@@ -43,6 +43,14 @@ public class Event {
     @Column(name = "end_at", nullable = false)
     private Instant endAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private City city;
+
+    /** 鄉鎮市區，例如「永和區」「員山鄉」。只作顯示用，不是查詢依據 */
+    @Column(length = 50)
+    private String district;
+
     @Column(name = "location_name")
     private String locationName;
 

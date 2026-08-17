@@ -18,6 +18,9 @@ public record EventSummaryResponse(
         String name,
         Instant startAt,
         Instant endAt,
+        /** 已轉成簡稱（例如「新北」），前端不必再維護一份對照表 */
+        String city,
+        String district,
         String locationName,
         Long organizerId,
         String organizerName
@@ -28,6 +31,8 @@ public record EventSummaryResponse(
                 event.getName(),
                 event.getStartAt(),
                 event.getEndAt(),
+                event.getCity().getShortName(),
+                event.getDistrict(),
                 event.getLocationName(),
                 event.getOrganizer().getId(),
                 event.getOrganizer().getName()

@@ -45,6 +45,8 @@ public class EventService {
                 .description(dto.description())
                 .startAt(dto.startAt())
                 .endAt(dto.endAt())
+                .city(dto.city())
+                .district(dto.district())
                 .locationName(dto.locationName())
                 .address(dto.address())
                 .build();
@@ -103,6 +105,8 @@ public class EventService {
         event.setDescription(dto.description());
         event.setStartAt(dto.startAt());
         event.setEndAt(dto.endAt());
+        event.setCity(dto.city());
+        event.setDistrict(dto.district());
         event.setLocationName(dto.locationName());
         event.setAddress(dto.address());
         // 不需要 save()：event 是交易內撈出的 managed entity，

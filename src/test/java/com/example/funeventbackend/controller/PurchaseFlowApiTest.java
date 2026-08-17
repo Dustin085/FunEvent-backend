@@ -1,5 +1,6 @@
 package com.example.funeventbackend.controller;
 
+import com.example.funeventbackend.model.City;
 import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderItemRepository;
@@ -226,6 +227,8 @@ class PurchaseFlowApiTest {
                                   "description": "改過的介紹",
                                   "startAt": "%s",
                                   "endAt": "%s",
+                                  "city": "YILAN",
+                                  "district": "員山鄉",
                                   "locationName": "改過的場地",
                                   "address": "改過的地址"
                                 }
@@ -242,6 +245,9 @@ class PurchaseFlowApiTest {
         assertEquals("改過的介紹", reloaded.getDescription());
         assertEquals("改過的場地", reloaded.getLocationName());
         assertEquals("改過的地址", reloaded.getAddress());
+        // enum 進來的是常數名（YILAN），存進 DB 也是常數名，只有 DTO 送出去時才轉成「宜蘭」
+        assertEquals(City.YILAN, reloaded.getCity());
+        assertEquals("員山鄉", reloaded.getDistrict());
     }
 
     @Test
@@ -406,6 +412,8 @@ class PurchaseFlowApiTest {
                   "description": "端到端測試用",
                   "startAt": "%s",
                   "endAt": "%s",
+                  "city": "TAIPEI",
+                  "district": "大安區",
                   "locationName": "測試場地",
                   "address": "台北市測試路 1 號"
                 }

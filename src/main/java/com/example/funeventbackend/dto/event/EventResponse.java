@@ -13,6 +13,9 @@ public record EventResponse(
         String description,
         Instant startAt,
         Instant endAt,
+        /** 已轉成簡稱（例如「新北」），前端不必再維護一份對照表 */
+        String city,
+        String district,
         String locationName,
         String address,
         EventStatus status,
@@ -26,6 +29,8 @@ public record EventResponse(
                 event.getDescription(),
                 event.getStartAt(),
                 event.getEndAt(),
+                event.getCity().getShortName(),
+                event.getDistrict(),
                 event.getLocationName(),
                 event.getAddress(),
                 event.getStatus(),

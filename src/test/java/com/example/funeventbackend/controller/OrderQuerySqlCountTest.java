@@ -1,5 +1,6 @@
 package com.example.funeventbackend.controller;
 
+import com.example.funeventbackend.model.City;
 import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.model.EventStatus;
 import com.example.funeventbackend.model.Order;
@@ -105,6 +106,7 @@ class OrderQuerySqlCountTest {
                 .organizer(organizer).name("測試活動").description("SQL 計數用")
                 .startAt(Instant.now().plus(30, ChronoUnit.DAYS))
                 .endAt(Instant.now().plus(31, ChronoUnit.DAYS))
+                .city(City.TAIPEI).district("大安區")
                 .status(EventStatus.PUBLISHED).build());
 
         // 兩個票種，讓每張訂單都有多筆明細

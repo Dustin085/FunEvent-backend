@@ -67,6 +67,11 @@ app:
   # 前端 URL
   frontend-url: ${FRONTEND_URL:http://localhost:3000}
 
+  # 開發用示範資料。⚠️ 預設關閉 —— 它會建立密碼公開的帳號。
+  # 本機開發請在 run configuration 設環境變數 DEMO_DATA=true
+  demo-data:
+    enabled: ${DEMO_DATA:false}
+
   # ── 金流 ───────────────────────────────────────────────────
   payment:
     # 預設 fake：測試與本機開發不需要真的金鑰。

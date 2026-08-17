@@ -1,5 +1,6 @@
 package com.example.funeventbackend.controller;
 
+import com.example.funeventbackend.model.City;
 import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.model.EventStatus;
 import com.example.funeventbackend.model.Organizer;
@@ -94,6 +95,8 @@ class EventQuerySqlCountTest {
                     .description("SQL 計數用")
                     .startAt(Instant.now().plus(30 + i, ChronoUnit.DAYS))
                     .endAt(Instant.now().plus(31 + i, ChronoUnit.DAYS))
+                    .city(City.TAIPEI)
+                    .district("大安區")
                     .locationName("測試場地 " + i)
                     .status(EventStatus.PUBLISHED)
                     .build());

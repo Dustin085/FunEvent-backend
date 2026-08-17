@@ -22,6 +22,11 @@ spring:
     console:
       enabled: false
 
+# 測試自己準備固定資料，示範資料會干擾 SQL 句數斷言與各測試的筆數斷言
+app:
+  demo-data:
+    enabled: false
+
 logging:
   level:
     org.hibernate.orm.jdbc.bind: warn
