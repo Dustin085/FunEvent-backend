@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.List;
 
@@ -40,6 +41,24 @@ public class GlobalExceptionHandler {
         ErrorResponse response = ErrorResponse.of(
                 status,
                 e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
+    // MethodArgumentTypeMismatchException：query 或 path 參數轉不成目標型別，
+    // 例如 ?category=不存在的分類、/api/events/abc。
+    // 沒有這個 handler 的話會掉進 catch-all 變成 500 —— 但那是使用者輸入錯誤，不是伺服器故障
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatchException(
+            MethodArgumentTypeMismatchException e,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        // 不要把 e.getMessage() 直接吐出去 —— 它含有 Java 類別名與套件路徑
+        ErrorResponse response = ErrorResponse.of(
+                status,
+                "參數「" + e.getName() + "」的值不正確",
                 request.getRequestURI()
         );
         return ResponseEntity.status(status).body(response);

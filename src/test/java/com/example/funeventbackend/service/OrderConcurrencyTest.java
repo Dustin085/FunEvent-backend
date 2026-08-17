@@ -1,6 +1,7 @@
 package com.example.funeventbackend.service;
 
 import com.example.funeventbackend.dto.order.CreateOrderRequest;
+import com.example.funeventbackend.model.Category;
 import com.example.funeventbackend.model.City;
 import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.model.EventStatus;
@@ -99,6 +100,7 @@ class OrderConcurrencyTest {
                 .description("併發測試用")
                 .startAt(Instant.now().plus(30, ChronoUnit.DAYS))
                 .endAt(Instant.now().plus(31, ChronoUnit.DAYS))
+                .category(Category.LIFE_EXPERIENCE)
                 .city(City.TAIPEI)
                 .district("大安區")
                 .status(EventStatus.PUBLISHED)

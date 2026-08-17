@@ -174,7 +174,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"name\": \"Postman 測試活動\",\n  \"description\": \"由腳本自動建立\",\n  \"startAt\": \"{{startAt}}\",\n  \"endAt\": \"{{endAt}}\",\n  \"city\": \"NEW_TAIPEI\",\n  \"district\": \"板橋區\",\n  \"locationName\": \"測試場地\",\n  \"address\": \"新北市板橋區測試路 1 號\"\n}"
+          "raw": "{\n  \"name\": \"Postman 測試活動\",\n  \"description\": \"由腳本自動建立\",\n  \"startAt\": \"{{startAt}}\",\n  \"endAt\": \"{{endAt}}\",\n  \"category\": \"LIFE_EXPERIENCE\",\n  \"city\": \"NEW_TAIPEI\",\n  \"district\": \"板橋區\",\n  \"locationName\": \"測試場地\",\n  \"address\": \"新北市板橋區測試路 1 號\"\n}"
         },
         "url": "{{baseUrl}}/api/events"
       }

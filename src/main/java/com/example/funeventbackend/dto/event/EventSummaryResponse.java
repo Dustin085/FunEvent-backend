@@ -18,6 +18,10 @@ public record EventSummaryResponse(
         String name,
         Instant startAt,
         Instant endAt,
+        /** 常數名（例如 MUSIC_GROOVE），用來組篩選連結與推導圖示檔名 */
+        String categoryCode,
+        /** 顯示用（例如「音樂律動」） */
+        String categoryName,
         /** 已轉成簡稱（例如「新北」），前端不必再維護一份對照表 */
         String city,
         String district,
@@ -31,6 +35,8 @@ public record EventSummaryResponse(
                 event.getName(),
                 event.getStartAt(),
                 event.getEndAt(),
+                event.getCategory().name(),
+                event.getCategory().getDisplayName(),
                 event.getCity().getShortName(),
                 event.getDistrict(),
                 event.getLocationName(),

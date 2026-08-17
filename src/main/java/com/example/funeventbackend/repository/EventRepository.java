@@ -1,5 +1,6 @@
 package com.example.funeventbackend.repository;
 
+import com.example.funeventbackend.model.Category;
 import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.model.EventStatus;
 import jakarta.persistence.LockModeType;
@@ -24,6 +25,10 @@ public interface EventRepository extends JpaRepository<Event, Long> {
     // 對「集合」用 @EntityGraph 才會逼 Hibernate 改成在記憶體裡分頁。
     @EntityGraph(attributePaths = "organizer")
     Page<Event> findByStatusAndStartAtAfter(EventStatus status, Instant startAt, Pageable pageable);
+
+    @EntityGraph(attributePaths = "organizer")
+    Page<Event> findByStatusAndStartAtAfterAndCategory(
+            EventStatus status, Instant startAt, Category category, Pageable pageable);
 
     // 發出 SELECT ... FOR UPDATE，鎖住該列直到交易結束，
     // 避免「讀狀態 → 判斷 → 寫狀態」之間被其他交易插隊（TOCTOU）

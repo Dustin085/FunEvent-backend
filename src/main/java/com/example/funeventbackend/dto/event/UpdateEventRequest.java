@@ -1,5 +1,6 @@
 package com.example.funeventbackend.dto.event;
 
+import com.example.funeventbackend.model.Category;
 import com.example.funeventbackend.model.City;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -18,6 +19,9 @@ public record UpdateEventRequest(
 
         @NotNull(message = "結束時間不能為空")
         Instant endAt,
+
+        @NotNull(message = "分類不能為空")
+        Category category,
 
         @NotNull(message = "縣市不能為空")
         City city,

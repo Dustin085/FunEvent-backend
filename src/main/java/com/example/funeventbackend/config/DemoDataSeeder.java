@@ -1,5 +1,6 @@
 package com.example.funeventbackend.config;
 
+import com.example.funeventbackend.model.Category;
 import com.example.funeventbackend.model.City;
 import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.model.EventImage;
@@ -89,6 +90,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                     .endAt(Instant.now()
                             .plus(demo.startInDays(), ChronoUnit.DAYS)
                             .plus(demo.durationHours(), ChronoUnit.HOURS))
+                    .category(demo.category())
                     .city(demo.city())
                     .district(demo.district())
                     .locationName(demo.locationName())
@@ -132,6 +134,7 @@ public class DemoDataSeeder implements ApplicationRunner {
             String description,
             int startInDays,
             int durationHours,
+            Category category,
             City city,
             String district,
             String locationName,
@@ -160,7 +163,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                             蘭響音樂教室的師資皆為從業多年的音樂教師，\
                             大多同時是樂團樂手或音樂製作人。""",
                     9, 3,
-                    City.TAIPEI, "中山區",
+                    Category.MUSIC_GROOVE, City.TAIPEI, "中山區",
                     "蘭響音樂教室",
                     "台北市中山區南京東路二段100號5樓",
                     List.of(
@@ -181,7 +184,7 @@ public class DemoDataSeeder implements ApplicationRunner {
 
                             營隊最後有分組友誼賽，每位學員都會拿到結業證書。""",
                     16, 6,
-                    City.NEW_TAIPEI, "永和區",
+                    Category.LIFE_EXPERIENCE, City.NEW_TAIPEI, "永和區",
                     "永和社區活動中心",
                     "新北市永和區永和路二段58號",
                     List.of("/images/events/chess-01.jpg"),
@@ -197,7 +200,7 @@ public class DemoDataSeeder implements ApplicationRunner {
 
                             穿舊衣服來，我們準備了圍裙但一定會弄髒。""",
                     23, 3,
-                    City.TAIPEI, "南港區",
+                    Category.ART_CULTURE, City.TAIPEI, "南港區",
                     "南港親子藝術空間",
                     "台北市南港區市民大道七段8號",
                     List.of("/images/events/painting-01.jpg"),
@@ -213,7 +216,7 @@ public class DemoDataSeeder implements ApplicationRunner {
 
                             現場備有降溫設備，夏天參加也不會太熱。""",
                     31, 3,
-                    City.NEW_TAIPEI, "三峽區",
+                    Category.CREATIVE_DIY, City.NEW_TAIPEI, "三峽區",
                     "三峽老街手作街屋",
                     "新北市三峽區民權街84號",
                     List.of("/images/events/sugar-01.jpg"),
@@ -230,7 +233,7 @@ public class DemoDataSeeder implements ApplicationRunner {
 
                             雨天改於室內場地舉行，不取消。""",
                     40, 7,
-                    City.NEW_TAIPEI, "板橋區",
+                    Category.SPORT, City.NEW_TAIPEI, "板橋區",
                     "板橋第二運動場",
                     "新北市板橋區中山路一段1號",
                     List.of("/images/events/balance-01.jpg"),
@@ -246,7 +249,7 @@ public class DemoDataSeeder implements ApplicationRunner {
 
                             由在地小農帶領，全程約需步行兩公里。""",
                     54, 8,
-                    City.YILAN, "員山鄉",
+                    Category.NATURE_SCIENCE, City.YILAN, "員山鄉",
                     "員山有機稻田",
                     "宜蘭縣員山鄉尚德路100號",
                     List.of("/images/events/field-01.jpg"),

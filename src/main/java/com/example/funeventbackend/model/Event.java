@@ -45,6 +45,10 @@ public class Event {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
+    private Category category;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
     private City city;
 
     /** 鄉鎮市區，例如「永和區」「員山鄉」。只作顯示用，不是查詢依據 */

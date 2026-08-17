@@ -8,6 +8,7 @@ import com.example.funeventbackend.exception.InvalidEventDataException;
 import com.example.funeventbackend.exception.InvalidStateTransitionException;
 import com.example.funeventbackend.exception.ResourceAccessDeniedException;
 import com.example.funeventbackend.exception.ResourceNotFoundException;
+import com.example.funeventbackend.model.Category;
 import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.model.EventStatus;
 import com.example.funeventbackend.model.Organizer;
@@ -45,6 +46,7 @@ public class EventService {
                 .description(dto.description())
                 .startAt(dto.startAt())
                 .endAt(dto.endAt())
+                .category(dto.category())
                 .city(dto.city())
                 .district(dto.district())
                 .locationName(dto.locationName())
@@ -56,11 +58,17 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
-    public Page<EventSummaryResponse> findPublished(Pageable pageable) {
+    public Page<EventSummaryResponse> findPublished(Category category, Pageable pageable) {
         // 已開始的活動買不到票（validatePurchasable 會擋），列出來只會誤導使用者
-        return eventRepository
-                .findByStatusAndStartAtAfter(EventStatus.PUBLISHED, Instant.now(), pageable)
-                .map(EventSummaryResponse::from);
+        Instant now = Instant.now();
+        // 衍生查詢無法表達「參數為 null 就忽略這個條件」，所以拆成兩個方法。
+        // ⚠️ 之後篩選條件變多（地區＋分類＋日期）時，這種寫法會膨脹成組合數，
+        //    那時要換成 Specification 或 QueryDSL
+        Page<Event> events = category == null
+                ? eventRepository.findByStatusAndStartAtAfter(EventStatus.PUBLISHED, now, pageable)
+                : eventRepository.findByStatusAndStartAtAfterAndCategory(
+                        EventStatus.PUBLISHED, now, category, pageable);
+        return events.map(EventSummaryResponse::from);
     }
 
     @Transactional(readOnly = true)
@@ -105,6 +113,7 @@ public class EventService {
         event.setDescription(dto.description());
         event.setStartAt(dto.startAt());
         event.setEndAt(dto.endAt());
+        event.setCategory(dto.category());
         event.setCity(dto.city());
         event.setDistrict(dto.district());
         event.setLocationName(dto.locationName());

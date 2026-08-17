@@ -4,6 +4,7 @@ import com.example.funeventbackend.dto.event.CreateEventRequest;
 import com.example.funeventbackend.dto.event.EventResponse;
 import com.example.funeventbackend.dto.event.EventSummaryResponse;
 import com.example.funeventbackend.dto.event.UpdateEventRequest;
+import com.example.funeventbackend.model.Category;
 import com.example.funeventbackend.security.CustomUserDetails;
 import com.example.funeventbackend.service.EventService;
 import jakarta.validation.Valid;
@@ -50,11 +51,12 @@ public class EventController {
 
     @GetMapping
     public ResponseEntity<PagedModel<EventSummaryResponse>> list(
+            @RequestParam(required = false) Category category,
             @PageableDefault(size = 12, sort = "startAt", direction = Sort.Direction.ASC)
             Pageable pageable
     ) {
         // size=12 好排格線；依 startAt 升冪 =「即將登場」，售票網站的預設語意
-        return ResponseEntity.ok(new PagedModel<>(eventService.findPublished(pageable)));
+        return ResponseEntity.ok(new PagedModel<>(eventService.findPublished(category, pageable)));
     }
 
     @GetMapping("/{id}")
