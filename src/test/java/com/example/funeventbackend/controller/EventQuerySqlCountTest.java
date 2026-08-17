@@ -7,6 +7,8 @@ import com.example.funeventbackend.model.EventStatus;
 import com.example.funeventbackend.model.Organizer;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
+import com.example.funeventbackend.model.EventImage;
+import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
@@ -60,6 +62,8 @@ class EventQuerySqlCountTest {
     @Autowired
     private EventRepository eventRepository;
     @Autowired
+    private EventImageRepository eventImageRepository;
+    @Autowired
     private TicketTypeRepository ticketTypeRepository;
     @Autowired
     private OrderRepository orderRepository;
@@ -78,6 +82,7 @@ class EventQuerySqlCountTest {
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
         ticketTypeRepository.deleteAll();
+        eventImageRepository.deleteAll();
         eventRepository.deleteAll();
         organizerRepository.deleteAll();
         refreshTokenRepository.deleteAll();
@@ -90,7 +95,7 @@ class EventQuerySqlCountTest {
                     .name("賣家 " + i).role(RoleType.USER).build());
             Organizer organizer = organizerRepository.save(Organizer.builder()
                     .user(seller).name("主辦單位 " + i).introduction("簡介 " + i).build());
-            eventRepository.save(Event.builder()
+            Event event = eventRepository.save(Event.builder()
                     .organizer(organizer)
                     .name("測試活動 " + i)
                     .description("SQL 計數用")
@@ -102,12 +107,19 @@ class EventQuerySqlCountTest {
                     .locationName("測試場地 " + i)
                     .status(EventStatus.PUBLISHED)
                     .build());
+            // ⚠️ 一定要真的建圖片：沒有圖的話，那句批次查詢即使沒生效也只會是 1 句，
+            // 測不出 @BatchSize 有沒有作用（跟「共用同一個 organizer」是同一種假綠燈）
+            eventImageRepository.save(EventImage.builder()
+                    .event(event)
+                    .imageUrl("/images/events/test-" + i + ".jpg")
+                    .sortOrder(0)
+                    .build());
         }
     }
 
     @Test
-    @DisplayName("數 SQL：首頁活動列表不論幾筆都只發一句")
-    void eventListIssuesOneStatement() throws Exception {
+    @DisplayName("數 SQL：首頁活動列表不論幾筆都只發兩句")
+    void eventListIssuesTwoStatements() throws Exception {
         Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
         statistics.clear();
 
@@ -116,15 +128,19 @@ class EventQuerySqlCountTest {
                 .andExpect(jsonPath("$.content.length()").value(EVENT_COUNT))
                 .andExpect(jsonPath("$.content[0].organizerName").value("主辦單位 0"))
                 // 依 startAt 升冪 → 最早開始的排第一
-                .andExpect(jsonPath("$.content[0].name").value("測試活動 0"));
+                .andExpect(jsonPath("$.content[0].name").value("測試活動 0"))
+                .andExpect(jsonPath("$.content[0].coverImageUrl").value("/images/events/test-0.jpg"));
 
         long statements = statistics.getPrepareStatementCount();
-        System.out.println("=== GET /api/events (" + EVENT_COUNT + " 筆) → " + statements + " 句 ===");
+        System.out.println("=== GET /api/events (" + EVENT_COUNT + " 筆，每筆 1 張圖) → "
+                + statements + " 句 ===");
 
-        // 只有一句：events LEFT JOIN organizers。
+        // 兩句，而且不隨活動筆數成長：
+        //   ① events LEFT JOIN organizers（@EntityGraph 抓「對一」，不影響分頁）
+        //   ② event_images where event_id in (...)（@BatchSize 把 N 句併成 1 句）
         // 這個端點是 permitAll，沒帶 token，所以連 JwtAuthenticationFilter 那句 users 查詢都沒有；
         // 結果少於一頁且 offset=0，Spring Data 也省略了 count 查詢。
-        assertEquals(1, statements,
-                "首頁活動列表的 SQL 句數變了，檢查 @EntityGraph 是不是被拿掉了");
+        assertEquals(2, statements,
+                "首頁活動列表的 SQL 句數變了，檢查 @EntityGraph 或 @BatchSize 是不是被拿掉了");
     }
 }

@@ -2,9 +2,11 @@ package com.example.funeventbackend.dto.event;
 
 import com.example.funeventbackend.dto.organizer.OrganizerResponse;
 import com.example.funeventbackend.model.Event;
+import com.example.funeventbackend.model.EventImage;
 import com.example.funeventbackend.model.EventStatus;
 
 import java.time.Instant;
+import java.util.List;
 
 public record EventResponse(
         Long id,
@@ -22,6 +24,8 @@ public record EventResponse(
         String district,
         String locationName,
         String address,
+        /** 依 sort_order 排序，第一張是封面 */
+        List<String> imageUrls,
         EventStatus status,
         Instant createdAt
 ) {
@@ -39,6 +43,7 @@ public record EventResponse(
                 event.getDistrict(),
                 event.getLocationName(),
                 event.getAddress(),
+                event.getImages().stream().map(EventImage::getImageUrl).toList(),
                 event.getStatus(),
                 event.getCreatedAt()
         );

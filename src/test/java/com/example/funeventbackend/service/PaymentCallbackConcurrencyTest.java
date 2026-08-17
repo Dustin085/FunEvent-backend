@@ -7,6 +7,7 @@ import com.example.funeventbackend.model.PaymentStatusType;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.payment.PaymentCallbackOutcome;
+import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
@@ -61,6 +62,8 @@ class PaymentCallbackConcurrencyTest {
     @Autowired
     private TicketTypeRepository ticketTypeRepository;
     @Autowired
+    private EventImageRepository eventImageRepository;
+    @Autowired
     private EventRepository eventRepository;
     @Autowired
     private OrganizerRepository organizerRepository;
@@ -81,6 +84,7 @@ class PaymentCallbackConcurrencyTest {
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
         ticketTypeRepository.deleteAll();
+        eventImageRepository.deleteAll();
         eventRepository.deleteAll();
         organizerRepository.deleteAll();
         refreshTokenRepository.deleteAll();

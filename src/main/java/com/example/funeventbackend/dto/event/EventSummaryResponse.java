@@ -26,6 +26,8 @@ public record EventSummaryResponse(
         String city,
         String district,
         String locationName,
+        /** sort_order 最小的那張。沒有圖時為 null，前端用漸層佔位 */
+        String coverImageUrl,
         Long organizerId,
         String organizerName
 ) {
@@ -40,6 +42,7 @@ public record EventSummaryResponse(
                 event.getCity().getShortName(),
                 event.getDistrict(),
                 event.getLocationName(),
+                event.getImages().isEmpty() ? null : event.getImages().getFirst().getImageUrl(),
                 event.getOrganizer().getId(),
                 event.getOrganizer().getName()
         );

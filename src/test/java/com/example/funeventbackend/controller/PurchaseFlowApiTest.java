@@ -2,6 +2,7 @@ package com.example.funeventbackend.controller;
 
 import com.example.funeventbackend.model.City;
 import com.example.funeventbackend.model.Event;
+import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
@@ -55,6 +56,8 @@ class PurchaseFlowApiTest {
     @Autowired
     private OrganizerRepository organizerRepository;
     @Autowired
+    private EventImageRepository eventImageRepository;
+    @Autowired
     private EventRepository eventRepository;
     @Autowired
     private TicketTypeRepository ticketTypeRepository;
@@ -74,6 +77,7 @@ class PurchaseFlowApiTest {
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
         ticketTypeRepository.deleteAll();
+        eventImageRepository.deleteAll();
         eventRepository.deleteAll();
         organizerRepository.deleteAll();
         refreshTokenRepository.deleteAll();

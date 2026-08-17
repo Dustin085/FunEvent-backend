@@ -2,10 +2,13 @@ package com.example.funeventbackend.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(
@@ -65,6 +68,14 @@ public class Event {
     @Column(nullable = false, length = 20)
     @Builder.Default
     private EventStatus status = EventStatus.DRAFT;
+
+    @OneToMany(mappedBy = "event", fetch = FetchType.LAZY)
+    // sort_order 決定順序，第一張就是封面
+    @OrderBy("sortOrder ASC")
+    // 列表一次撈 12 筆活動，沒有它就是 12 句 SQL
+    @BatchSize(size = 50)
+    @Builder.Default
+    private List<EventImage> images = new ArrayList<>();
 
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)

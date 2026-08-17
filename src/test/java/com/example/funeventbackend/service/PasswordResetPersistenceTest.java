@@ -3,6 +3,7 @@ package com.example.funeventbackend.service;
 import com.example.funeventbackend.model.PasswordResetToken;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
+import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
@@ -71,6 +72,8 @@ class PasswordResetPersistenceTest {
     @Autowired
     private TicketTypeRepository ticketTypeRepository;
     @Autowired
+    private EventImageRepository eventImageRepository;
+    @Autowired
     private EventRepository eventRepository;
     @Autowired
     private OrganizerRepository organizerRepository;
@@ -85,6 +88,7 @@ class PasswordResetPersistenceTest {
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
         ticketTypeRepository.deleteAll();
+        eventImageRepository.deleteAll();
         eventRepository.deleteAll();
         organizerRepository.deleteAll();
         refreshTokenRepository.deleteAll();

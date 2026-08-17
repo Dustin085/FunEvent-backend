@@ -9,6 +9,7 @@ import com.example.funeventbackend.model.Organizer;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.TicketType;
 import com.example.funeventbackend.model.User;
+import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
@@ -57,6 +58,8 @@ class OrderConcurrencyTest {
     @Autowired
     private OrganizerRepository organizerRepository;
     @Autowired
+    private EventImageRepository eventImageRepository;
+    @Autowired
     private EventRepository eventRepository;
     @Autowired
     private TicketTypeRepository ticketTypeRepository;
@@ -74,6 +77,7 @@ class OrderConcurrencyTest {
         orderItemRepository.deleteAll();
         orderRepository.deleteAll();
         ticketTypeRepository.deleteAll();
+        eventImageRepository.deleteAll();
         eventRepository.deleteAll();
         organizerRepository.deleteAll();
         userRepository.deleteAll();
