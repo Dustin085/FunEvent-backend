@@ -26,6 +26,15 @@ spring:
 app:
   demo-data:
     enabled: false
+  # 測試不會真的打 Google，填假的只是為了讓容器啟動得起來
+  #（主設定的 ${GOOGLE_CLIENT_ID} 沒有預設值，@ConfigurationProperties 在啟動時
+  #  就會解析它，解不開會導致所有 @SpringBootTest 啟動失敗）
+  oauth:
+    google:
+      client-id: test-client-id
+      client-secret: test-client-secret
+      allowed-audiences:
+        - test-client-id
 
 logging:
   level:

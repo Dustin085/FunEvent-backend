@@ -56,6 +56,13 @@ app:
     expiration: 900000 # 15 分鐘
   refresh-token:
     expiration: 604800000 # 7 天
+  oauth:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID}
+      client-secret: ${GOOGLE_CLIENT_SECRET}
+      # ⚠️ 清單而非單一值：之後 App 版的 client_id 不一樣
+      allowed-audiences:
+        - ${GOOGLE_CLIENT_ID}
 
   # ── CORS ───────────────────────────────────────────────────
   # 允許哪些前端來源讀取本 API 的回應。

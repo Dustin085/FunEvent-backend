@@ -77,6 +77,15 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+        <!--   驗證 Google ID Token 用（JWKS 抓公鑰 + RS256 驗簽 + 金鑰輪替）。
+               ⚠️ 不是 spring-boot-starter-oauth2-resource-server ——
+               那個會啟動 resource server 自動組態，跟現有的 JwtAuthenticationFilter 打架。
+               版本由 spring-boot-starter-parent 管理     -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
+        </dependency>
+
         <!--   JWT相關依賴     -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
