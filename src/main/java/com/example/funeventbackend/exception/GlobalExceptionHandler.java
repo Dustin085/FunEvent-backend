@@ -46,6 +46,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(response);
     }
 
+    // OAuthAccountLinkConflictException：email 已被本站帳號使用，但未經第三方驗證，不能自動綁定
+    @ExceptionHandler(OAuthAccountLinkConflictException.class)
+    public ResponseEntity<ErrorResponse> handleOAuthAccountLinkConflictException(
+            OAuthAccountLinkConflictException e,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.CONFLICT;
+        ErrorResponse response = ErrorResponse.of(
+                status,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
     // OAuthOnlyAccountException：帳號沒有密碼（第三方登入建立的），卻用密碼登入
     @ExceptionHandler(OAuthOnlyAccountException.class)
     public ResponseEntity<ErrorResponse> handleOAuthOnlyAccountException(
