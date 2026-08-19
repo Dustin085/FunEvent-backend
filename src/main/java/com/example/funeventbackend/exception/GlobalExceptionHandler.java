@@ -31,6 +31,21 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(response);
     }
 
+    // OAuthOnlyAccountException：帳號沒有密碼（第三方登入建立的），卻用密碼登入
+    @ExceptionHandler(OAuthOnlyAccountException.class)
+    public ResponseEntity<ErrorResponse> handleOAuthOnlyAccountException(
+            OAuthOnlyAccountException e,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.CONFLICT;
+        ErrorResponse response = ErrorResponse.of(
+                status,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
     // InvalidStateTransitionException
     @ExceptionHandler(InvalidStateTransitionException.class)
     public ResponseEntity<ErrorResponse> handleInvalidStateTransitionException(

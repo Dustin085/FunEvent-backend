@@ -24,7 +24,9 @@ public class User {
     private String email;
 
     @JsonIgnore
-    @Column(name = "password_hash", nullable = false)
+    // ⚠️ 可為 null：透過 Google 等第三方登入建立的帳號沒有密碼。
+    // 判斷「這個帳號能不能用密碼登入」請用 hasPassword()，不要各處自己比對 null
+    @Column(name = "password_hash")
     private String passwordHash;
 
     @Column()
@@ -41,4 +43,12 @@ public class User {
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    /**
+     * 這個帳號是否可以用密碼登入。
+     * 第三方登入建立的帳號沒有密碼，只能走原本的 provider。
+     */
+    public boolean hasPassword() {
+        return passwordHash != null;
+    }
 }

@@ -6,6 +6,7 @@ import com.example.funeventbackend.dto.auth.RegisterRequest;
 import com.example.funeventbackend.dto.auth.UserResponse;
 import com.example.funeventbackend.exception.EmailAlreadyExistsException;
 import com.example.funeventbackend.exception.InvalidCredentialsException;
+import com.example.funeventbackend.exception.OAuthOnlyAccountException;
 import com.example.funeventbackend.exception.ResourceNotFoundException;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
@@ -51,6 +52,13 @@ public class UserService {
         // 嘗試使用 email 撈 User，驗證 User 是否存在
         User user = userRepository.findByEmail(dto.email())
                 .orElseThrow(() -> new InvalidCredentialsException("帳號或密碼錯誤"));
+        // ⚠️ 第三方登入建立的帳號沒有密碼，要在 matches() 之前擋掉。
+        // 不擋的話 BCrypt 對 null 會回 false（不會拋 NPE），使用者只看到
+        // 「帳號或密碼錯誤」—— 他從沒設過密碼，會永遠卡在這裡重試，
+        // 而且每次都印一行 warn。
+        if (!user.hasPassword()) {
+            throw new OAuthOnlyAccountException("此帳號是使用第三方登入建立的，請改用原本的登入方式");
+        }
         // 驗證密碼
         if (!passwordEncoder.matches(dto.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException("帳號或密碼錯誤");

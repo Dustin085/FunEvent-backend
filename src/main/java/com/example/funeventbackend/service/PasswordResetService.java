@@ -52,6 +52,14 @@ public class PasswordResetService {
             return;
         }
         User user = optionalUser.get();
+        // ⚠️ 第三方登入建立的帳號沒有密碼，「重設」沒有意義。
+        // 和上面 email 不存在時一樣直接返回、不拋例外 —— 保持這支端點對外的行為
+        // 完全一致，不洩漏帳號狀態。
+        // （登入那支刻意告知，是因為不講的話使用者會永遠卡住；這裡不講不會卡住任何人）
+        // TODO 之後可以做「為第三方帳號設定密碼」，那是另一支端點與另一封信
+        if (!user.hasPassword()) {
+            return;
+        }
         // 檢查是否已有可用 token
         Optional<PasswordResetToken> optionalValidToken =
                 passwordResetTokenRepository
