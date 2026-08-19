@@ -2,6 +2,7 @@ package com.example.funeventbackend.controller;
 
 import com.example.funeventbackend.dto.MessageResponse;
 import com.example.funeventbackend.dto.auth.*;
+import com.example.funeventbackend.service.OAuthLoginService;
 import com.example.funeventbackend.service.PasswordResetService;
 import com.example.funeventbackend.service.RefreshTokenService;
 import com.example.funeventbackend.service.UserService;
@@ -21,6 +22,7 @@ public class AuthController {
     private final UserService userService;
     private final PasswordResetService passwordResetService;
     private final RefreshTokenService refreshTokenService;
+    private final OAuthLoginService oAuthLoginService;
 
     @PostMapping("/register")
     public ResponseEntity<UserResponse> register(@Valid @RequestBody RegisterRequest request) {
@@ -30,6 +32,19 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
         return ResponseEntity.ok(userService.login(request));
+    }
+
+    /**
+     * 第三方登入（網頁版）。由 Next 的 callback Route Handler 呼叫，
+     * 不是瀏覽器直接打的 —— 瀏覽器只會走到 Next 那一層。
+     *
+     * <p>SecurityConfig 的 /api/auth/** 已經是 permitAll：
+     * 這支端點本來就是給還沒有身分的人用的。
+     */
+    @PostMapping("/oauth/google")
+    public ResponseEntity<AuthResponse> loginWithGoogle(
+            @Valid @RequestBody GoogleOAuthLoginRequest request) {
+        return ResponseEntity.ok(oAuthLoginService.loginWithGoogleCode(request));
     }
 
     @PostMapping("/logout")

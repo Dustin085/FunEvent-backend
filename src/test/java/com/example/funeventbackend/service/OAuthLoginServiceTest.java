@@ -78,7 +78,7 @@ class OAuthLoginServiceTest {
     void createsUserOnFirstLogin() {
         mockClaims(GOOGLE_SUB, EMAIL, true, "測試使用者");
 
-        AuthResponse response = oAuthLoginService.loginWithGoogle(ID_TOKEN);
+        AuthResponse response = oAuthLoginService.loginWithGoogleIdToken(ID_TOKEN);
 
         assertEquals(EMAIL, response.email());
         assertEquals("測試使用者", response.name());
@@ -96,8 +96,8 @@ class OAuthLoginServiceTest {
     void reusesUserOnSecondLogin() {
         mockClaims(GOOGLE_SUB, EMAIL, true, "測試使用者");
 
-        AuthResponse first = oAuthLoginService.loginWithGoogle(ID_TOKEN);
-        AuthResponse second = oAuthLoginService.loginWithGoogle(ID_TOKEN);
+        AuthResponse first = oAuthLoginService.loginWithGoogleIdToken(ID_TOKEN);
+        AuthResponse second = oAuthLoginService.loginWithGoogleIdToken(ID_TOKEN);
 
         assertEquals(first.id(), second.id());
         assertEquals(1, userRepository.count());
@@ -116,7 +116,7 @@ class OAuthLoginServiceTest {
 
         mockClaims(GOOGLE_SUB, EMAIL, true, "Google 上的名字");
 
-        AuthResponse response = oAuthLoginService.loginWithGoogle(ID_TOKEN);
+        AuthResponse response = oAuthLoginService.loginWithGoogleIdToken(ID_TOKEN);
 
         assertEquals(existing.getId(), response.id());
         assertEquals(1, userRepository.count());
@@ -142,7 +142,7 @@ class OAuthLoginServiceTest {
         mockClaims(GOOGLE_SUB, EMAIL, false, "冒充者");
 
         assertThrows(OAuthAccountLinkConflictException.class,
-                () -> oAuthLoginService.loginWithGoogle(ID_TOKEN));
+                () -> oAuthLoginService.loginWithGoogleIdToken(ID_TOKEN));
 
         assertEquals(0, userOAuthAccountRepository.count());
     }
@@ -151,7 +151,7 @@ class OAuthLoginServiceTest {
     @DisplayName("對第三方建立的無密碼帳號用密碼登入：回 OAuthOnlyAccountException")
     void passwordLoginRejectedForOAuthOnlyAccount() {
         mockClaims(GOOGLE_SUB, EMAIL, true, "測試使用者");
-        oAuthLoginService.loginWithGoogle(ID_TOKEN);
+        oAuthLoginService.loginWithGoogleIdToken(ID_TOKEN);
 
         // 這條分支在 user_oauth_accounts 做出來之前無法測試 —— 資料庫裡
         // 根本建不出 passwordHash 為 null 的使用者

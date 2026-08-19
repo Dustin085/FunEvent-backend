@@ -1,6 +1,8 @@
 package com.example.funeventbackend.service;
 
 import com.example.funeventbackend.dto.auth.AuthResponse;
+import com.example.funeventbackend.dto.auth.GoogleOAuthLoginRequest;
+import com.example.funeventbackend.security.oauth.GoogleTokenExchanger;
 import com.example.funeventbackend.model.OAuthProvider;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.security.JwtService;
@@ -26,12 +28,29 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 @Slf4j
 public class OAuthLoginService {
+    private final GoogleTokenExchanger googleTokenExchanger;
     private final GoogleIdTokenVerifier googleIdTokenVerifier;
     private final OAuthAccountLinker accountLinker;
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
 
-    public AuthResponse loginWithGoogle(String idToken) {
+    /**
+     * 網頁版入口：完整走第 8～12 步。
+     */
+    public AuthResponse loginWithGoogleCode(GoogleOAuthLoginRequest request) {
+        // 第 8、9 步：後端對後端，client_secret 只在這裡出現
+        String idToken = googleTokenExchanger.exchangeCodeForIdToken(
+                request.code(), request.codeVerifier(), request.redirectUri());
+        return loginWithGoogleIdToken(idToken);
+    }
+
+    /**
+     * 第 10～12 步。
+     *
+     * <p>⭐ 獨立成 public 方法是為了未來的 App 版 —— App 會用自己的 client_id
+     * 完成兌換，直接把 id_token 送過來，那時只要加一支端點呼叫這裡。
+     */
+    public AuthResponse loginWithGoogleIdToken(String idToken) {
         // 第 10 步：驗簽章 / iss / aud / exp。這之前 idToken 裡的任何宣告都不可信
         GoogleIdTokenClaims claims = googleIdTokenVerifier.verify(idToken);
 

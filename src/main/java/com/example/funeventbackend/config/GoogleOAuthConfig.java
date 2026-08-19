@@ -5,6 +5,7 @@ import com.example.funeventbackend.security.oauth.GoogleIssuerValidator;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
@@ -13,6 +14,9 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 
+import org.springframework.web.client.RestClient;
+
+import java.time.Duration;
 import java.util.List;
 
 @Configuration
@@ -35,6 +39,24 @@ public class GoogleOAuthConfig {
                 .build();
         decoder.setJwtValidator(googleIdTokenValidator(properties.allowedAudiences()));
         return decoder;
+    }
+
+    /**
+     * 專門打 Google token 端點用的 RestClient。
+     *
+     * <p>⚠️ 自己建而不是注入自動組態的 RestClient.Builder：
+     * Boot 4 把 RestClientAutoConfiguration 移到 spring-boot-restclient 模組，
+     * 我們的 classpath 上沒有它（spring-boot-starter-webmvc 不含）。
+     *
+     * <p>順帶好處是逾時可以只針對這個用途設定 —— 這是登入路徑上的對外請求，
+     * 沒有逾時的話 Google 一慢就會把執行緒卡住。
+     */
+    @Bean
+    public RestClient googleOAuthRestClient() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(10));
+        return RestClient.builder().requestFactory(factory).build();
     }
 
     /**

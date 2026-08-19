@@ -84,7 +84,7 @@ class OAuthLoginConcurrencyTest {
                 executor.submit(() -> {
                     try {
                         startGate.await();
-                        AuthResponse response = oAuthLoginService.loginWithGoogle("fake-id-token");
+                        AuthResponse response = oAuthLoginService.loginWithGoogleIdToken("fake-id-token");
                         userIds.add(response.id());
                     } catch (Throwable t) {
                         failures.add(t);

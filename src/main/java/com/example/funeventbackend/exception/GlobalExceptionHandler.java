@@ -31,6 +31,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(response);
     }
 
+    // OAuthProviderUnavailableException：連不上第三方，或第三方回了 5xx。
+    // ⚠️ 刻意不歸成 401 —— 那不是使用者的憑證有問題，是我們或 Google 出問題
+    @ExceptionHandler(OAuthProviderUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleOAuthProviderUnavailableException(
+            OAuthProviderUnavailableException e,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.BAD_GATEWAY;
+        ErrorResponse response = ErrorResponse.of(
+                status,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
     // InvalidOAuthTokenException：第三方登入的憑證無效
     @ExceptionHandler(InvalidOAuthTokenException.class)
     public ResponseEntity<ErrorResponse> handleInvalidOAuthTokenException(
