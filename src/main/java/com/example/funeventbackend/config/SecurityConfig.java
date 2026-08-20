@@ -129,6 +129,7 @@ public class SecurityConfig {
 
                         .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/categories").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/cities").permitAll()
 
                         // 金流商的伺服器不會帶我們的 JWT，只能開放。
                         // ⚠️ 這條路徑等於對全世界開放，安全性 100% 依賴

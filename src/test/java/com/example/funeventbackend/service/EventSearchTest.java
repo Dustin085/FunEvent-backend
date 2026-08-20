@@ -24,6 +24,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -96,8 +97,14 @@ class EventSearchTest {
     }
 
     private List<String> search(String keyword, Category category, City city) {
+        return searchMulti(keyword,
+                category == null ? null : List.of(category),
+                city == null ? null : List.of(city));
+    }
+
+    private List<String> searchMulti(String keyword, List<Category> categories, List<City> cities) {
         return eventService
-                .search(new EventSearchCriteria(keyword, category, city), FIRST_PAGE)
+                .search(new EventSearchCriteria(keyword, categories, cities), FIRST_PAGE)
                 .map(EventSummaryResponse::name)
                 .getContent();
     }
@@ -151,6 +158,56 @@ class EventSearchTest {
         // 同樣的關鍵字與分類，換成新北 → 只有「小小棋神夏令營」
         assertEquals(List.of("小小棋神夏令營"),
                 search("chess", Category.LIFE_EXPERIENCE, City.NEW_TAIPEI));
+    }
+
+    @Test
+    @DisplayName("⭐ 多選分類：同一欄位內是 OR")
+    void multipleCategoriesAreOred() {
+        // 兩個分類都勾 → 三場活動全中
+        assertEquals(3, searchMulti(null,
+                List.of(Category.MUSIC_GROOVE, Category.LIFE_EXPERIENCE), null).size());
+
+        // 只勾音樂 → 只剩吉他課
+        assertEquals(List.of("民謠吉他入門"),
+                searchMulti(null, List.of(Category.MUSIC_GROOVE), null));
+    }
+
+    @Test
+    @DisplayName("⭐ 多選地區：同一欄位內是 OR")
+    void multipleCitiesAreOred() {
+        assertEquals(3, searchMulti(null, null,
+                List.of(City.TAIPEI, City.NEW_TAIPEI)).size());
+    }
+
+    @Test
+    @DisplayName("⭐ 不同欄位之間是 AND：多選分類 × 多選地區取交集")
+    void differentFacetsAreAnded() {
+        // (音樂 OR 生活體驗) AND (新北 OR 高雄) → 只有新北那場
+        assertEquals(List.of("小小棋神夏令營"), searchMulti(null,
+                List.of(Category.MUSIC_GROOVE, Category.LIFE_EXPERIENCE),
+                List.of(City.NEW_TAIPEI, City.KAOHSIUNG)));
+    }
+
+    @Test
+    @DisplayName("⚠️ List 裡的 null 要被濾掉，不能變成 IN (null)")
+    void nullElementsAreIgnored() {
+        // ?category= 這種空字串會讓 Spring 放一個 null 進 List。
+        // 沒濾掉的話 IN (null) 在 SQL 裡永遠不成立 —— 會靜默地變成查不到任何東西
+        List<Category> withNull = new ArrayList<>();
+        withNull.add(null);
+        assertEquals(3, searchMulti(null, withNull, null).size(),
+                "整串都是 null 應該等同於沒有篩選");
+
+        List<Category> mixed = new ArrayList<>();
+        mixed.add(Category.MUSIC_GROOVE);
+        mixed.add(null);
+        assertEquals(List.of("民謠吉他入門"), searchMulti(null, mixed, null));
+    }
+
+    @Test
+    @DisplayName("空的 List 等同於沒有篩選")
+    void emptyListIsIgnored() {
+        assertEquals(3, searchMulti(null, List.of(), List.of()).size());
     }
 
     @Test

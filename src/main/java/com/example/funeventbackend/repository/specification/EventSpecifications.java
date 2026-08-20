@@ -7,6 +7,8 @@ import com.example.funeventbackend.model.EventStatus;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * 活動查詢的條件片段。
@@ -19,6 +21,9 @@ import java.time.Instant;
  * <p>⚠️ 欄位名是字串，打錯只有執行期會知道。EventSearchTest 就是這件事的保護網。
  */
 public final class EventSpecifications {
+    /** 單一篩選欄位最多接受幾個值。防止有人送一萬個參數做出超大的 IN 子句 */
+    private static final int MAX_FILTER_VALUES = 30;
+
     private EventSpecifications() {
     }
 
@@ -35,14 +40,48 @@ public final class EventSpecifications {
         return (root, query, cb) -> cb.greaterThan(root.get("startAt"), instant);
     }
 
-    public static Specification<Event> hasCategory(Category category) {
-        if (category == null) return null;
-        return (root, query, cb) -> cb.equal(root.get("category"), category);
+    /**
+     * 分類多選。同一組之內是 OR：勾了「音樂律動」和「運動休閒」＝兩者皆可。
+     *
+     * <p>⚠️ 這裡只能是 OR。一個活動只有一個分類，
+     * {@code category = 音樂 AND category = 運動} 永遠是空集合。
+     *
+     * <p>不同組之間（分類 vs 地區）才是 AND —— 那是由呼叫端把多個
+     * Specification 用 allOf 串起來達成的，不在這個方法裡。
+     *
+     * <p>⚠️ tags 之後不能照抄這個：一個活動可以有多個標籤，
+     * 「親子 AND 室內」是有意義的查詢，語意要另外設計。
+     */
+    public static Specification<Event> hasAnyCategory(List<Category> categories) {
+        List<Category> values = sanitize(categories);
+        if (values.isEmpty()) return null;
+        return (root, query, cb) -> root.get("category").in(values);
     }
 
-    public static Specification<Event> inCity(City city) {
-        if (city == null) return null;
-        return (root, query, cb) -> cb.equal(root.get("city"), city);
+    /** 地區多選，語意同 {@link #hasAnyCategory} */
+    public static Specification<Event> inAnyCity(List<City> cities) {
+        List<City> values = sanitize(cities);
+        if (values.isEmpty()) return null;
+        return (root, query, cb) -> root.get("city").in(values);
+    }
+
+    /**
+     * 清掉 null 並限制數量。
+     *
+     * <p>⚠️ null 會出現是因為 {@code ?category=}（空字串）——
+     * Spring 轉不出 enum 時會放一個 null 進 List，而 {@code IN (null)}
+     * 在 SQL 裡永遠不成立，會讓整個篩選靜默地變成「查不到任何東西」。
+     *
+     * <p>⚠️ 上限是防濫用：API 是公開的，有人可以送一萬個 ?city= 做出
+     * 一個超大的 IN 子句。超過就截斷而不是報錯 —— 正常使用者不可能超過。
+     */
+    private static <T> List<T> sanitize(List<T> values) {
+        if (values == null) return List.of();
+        return values.stream()
+                .filter(Objects::nonNull)
+                .distinct()
+                .limit(MAX_FILTER_VALUES)
+                .toList();
     }
 
     /**

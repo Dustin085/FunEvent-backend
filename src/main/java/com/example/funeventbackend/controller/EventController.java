@@ -20,6 +20,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/events")
 @RequiredArgsConstructor
@@ -54,14 +56,18 @@ public class EventController {
     @GetMapping
     public ResponseEntity<PagedModel<EventSummaryResponse>> list(
             @RequestParam(required = false) String q,
-            @RequestParam(required = false) Category category,
-            @RequestParam(required = false) City city,
+            @RequestParam(required = false) List<Category> category,
+            @RequestParam(required = false) List<City> city,
             @PageableDefault(size = 12, sort = "startAt", direction = Sort.Direction.ASC)
             Pageable pageable
     ) {
         // size=12 好排格線；依 startAt 升冪 =「即將登場」，售票網站的預設語意。
-        // ⚠️ category / city 傳無效值時 Spring 會拋 MethodArgumentTypeMismatchException，
-        // GlobalExceptionHandler 已經把它處理成 400（而不是 500）
+        //
+        // 多選：?category=A&category=B（Spring 也吃 ?category=A,B）。
+        // 同一欄位內是 OR，不同欄位之間是 AND。
+        // ⚠️ 傳認不得的值時 Spring 會拋 MethodArgumentTypeMismatchException，
+        // GlobalExceptionHandler 已經把它處理成 400（而不是 500）；
+        // 空字串會變成 List 裡的 null，由 EventSpecifications 濾掉
         EventSearchCriteria criteria = new EventSearchCriteria(q, category, city);
         return ResponseEntity.ok(new PagedModel<>(eventService.search(criteria, pageable)));
     }

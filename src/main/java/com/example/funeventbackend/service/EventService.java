@@ -72,8 +72,8 @@ public class EventService {
         List<Specification<Event>> specs = Stream.of(
                         EventSpecifications.isPublished(),
                         EventSpecifications.startsAfter(now),
-                        EventSpecifications.hasCategory(criteria.category()),
-                        EventSpecifications.inCity(criteria.city()),
+                        EventSpecifications.hasAnyCategory(criteria.categories()),
+                        EventSpecifications.inAnyCity(criteria.cities()),
                         EventSpecifications.keywordMatches(criteria.keyword()))
                 .filter(Objects::nonNull)
                 .toList();
