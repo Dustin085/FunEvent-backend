@@ -1,16 +1,23 @@
 package com.example.funeventbackend.config;
 
 import com.example.funeventbackend.model.Category;
+import com.example.funeventbackend.model.Comment;
 import com.example.funeventbackend.model.City;
 import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.model.EventImage;
 import com.example.funeventbackend.model.EventStatus;
+import com.example.funeventbackend.model.Order;
+import com.example.funeventbackend.model.OrderItem;
+import com.example.funeventbackend.model.OrderStatusType;
 import com.example.funeventbackend.model.Organizer;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.TicketType;
 import com.example.funeventbackend.model.User;
+import com.example.funeventbackend.repository.CommentRepository;
 import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
+import com.example.funeventbackend.repository.OrderItemRepository;
+import com.example.funeventbackend.repository.OrderRepository;
 import com.example.funeventbackend.repository.OrganizerRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
 import com.example.funeventbackend.repository.UserRepository;
@@ -50,6 +57,9 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final EventRepository eventRepository;
     private final EventImageRepository eventImageRepository;
     private final TicketTypeRepository ticketTypeRepository;
+    private final OrderRepository orderRepository;
+    private final OrderItemRepository orderItemRepository;
+    private final CommentRepository commentRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -81,6 +91,10 @@ public class DemoDataSeeder implements ApplicationRunner {
                         + "我們也策劃親子共學、戶外體驗與手作課程。")
                 .build());
 
+        // 已經結束的那一場要拿來示範評論 —— 評論資格要求「活動已開始 + 有 PAID 訂單」
+        Event pastEvent = null;
+        TicketType pastEventTicket = null;
+
         for (DemoEvent demo : DEMO_EVENTS) {
             Event event = eventRepository.save(Event.builder()
                     .organizer(organizer)
@@ -110,8 +124,9 @@ public class DemoDataSeeder implements ApplicationRunner {
                         .build());
             }
 
+            TicketType firstTicket = null;
             for (DemoTicketType ticket : demo.ticketTypes()) {
-                ticketTypeRepository.save(TicketType.builder()
+                TicketType saved = ticketTypeRepository.save(TicketType.builder()
                         .event(event)
                         .name(ticket.name())
                         .description(ticket.description())
@@ -119,12 +134,90 @@ public class DemoDataSeeder implements ApplicationRunner {
                         .capacity(ticket.capacity())
                         .stock(ticket.capacity())
                         .build());
+                if (firstTicket == null) {
+                    firstTicket = saved;
+                }
             }
+
+            if (demo.startInDays() < 0) {
+                pastEvent = event;
+                pastEventTicket = firstTicket;
+            }
+        }
+
+        if (pastEvent != null && pastEventTicket != null) {
+            seedComments(pastEvent, pastEventTicket);
+            // ⚠️ 這場活動不會出現在首頁與搜尋結果裡 —— 查詢會排除已結束的活動。
+            // 要看評論得直接開網址，所以把 id 印出來
+            log.warn("示範評論建在活動 id={}（已結束，故不會出現在列表中）：{}",
+                    pastEvent.getId(), pastEvent.getName());
         }
 
         log.warn("已建立 {} 場示範活動。可登入帳號：{} / {}（買家）、{} / {}（主辦者）",
                 DEMO_EVENTS.size(), BUYER_EMAIL, DEMO_PASSWORD, ORGANIZER_EMAIL, DEMO_PASSWORD);
     }
+
+    /**
+     * 幫已經開始的那場活動補上示範評論。
+     *
+     * <p>⚠️ 不能只塞 comments —— CommentService 要求「有這個活動的 PAID 訂單」，
+     * 所以每位評論者都要有自己的使用者、訂單與明細。
+     * 只塞評論的話資料庫裡會有「不可能透過 API 產生」的資料，
+     * 那種示範資料會掩蓋掉規則本身的問題。
+     *
+     * <p>每人一個獨立帳號，因為 UNIQUE(event_id, user_id) 限制一人一則。
+     */
+    private void seedComments(Event event, TicketType ticketType) {
+        for (DemoComment demo : DEMO_COMMENTS) {
+            User reviewer = userRepository.save(User.builder()
+                    .email(demo.email())
+                    .passwordHash(passwordEncoder.encode(DEMO_PASSWORD))
+                    .name(demo.name())
+                    .role(RoleType.USER)
+                    .build());
+
+            Order order = orderRepository.save(Order.builder()
+                    .user(reviewer)
+                    .totalAmount(ticketType.getPrice())
+                    .status(OrderStatusType.PAID)
+                    .paidAt(Instant.now().minus(20, ChronoUnit.DAYS))
+                    // 早就付完款了，期限不再有意義，但欄位是 NOT NULL
+                    .expiresAt(Instant.now().minus(20, ChronoUnit.DAYS))
+                    .build());
+            orderItemRepository.save(OrderItem.builder()
+                    .order(order)
+                    .ticketType(ticketType)
+                    .ticketTypeName(ticketType.getName())
+                    .unitPrice(ticketType.getPrice())
+                    .quantity(1)
+                    .build());
+            // 賣掉了就要扣庫存，否則示範資料自己就是不一致的。
+            // ticketType 是這個交易裡的 managed entity，髒檢查會寫回去
+            ticketType.setStock(ticketType.getStock() - 1);
+
+            commentRepository.save(Comment.builder()
+                    .event(event)
+                    .user(reviewer)
+                    .rating(demo.rating())
+                    .content(demo.content())
+                    .build());
+        }
+    }
+
+    private record DemoComment(String email, String name, int rating, String content) {
+    }
+
+    private static final List<DemoComment> DEMO_COMMENTS = List.of(
+            new DemoComment("reviewer1@funevent.test", "陳小姐", 5,
+                    "老師超有耐心，我完全零基礎，三個小時真的彈完一首歌了。"
+                            + "教室裡的樂器也都保養得很好，不會有那種弦鏽掉的狀況。"
+                            + "唯一建議是可以多留一點時間讓大家互相彈給對方聽。"),
+            new DemoComment("reviewer2@funevent.test", "王先生", 4,
+                    "帶小孩一起去的，場地乾淨，動線也清楚。"
+                            + "課程節奏對大人剛好，小朋友後半段稍微跟不上，"
+                            + "如果能分齡分組會更好。"),
+            new DemoComment("reviewer3@funevent.test", "林同學", 5,
+                    "本來只是想找個週末的活動打發時間，結果整個被燒到，回家立刻買了一把。"));
 
     private record DemoTicketType(String name, String description, String price, int capacity) {
     }
@@ -255,5 +348,27 @@ public class DemoDataSeeder implements ApplicationRunner {
                     List.of("/images/events/field-01.jpg"),
                     List.of(
                             new DemoTicketType("成人票", "含午餐與手作材料", "1180.00", 30),
-                            new DemoTicketType("孩童票", "6–12 歲", "780.00", 30))));
+                            new DemoTicketType("孩童票", "6–12 歲", "780.00", 30))),
+            // ⚠️ startInDays 是負的 —— 這場已經結束了。
+            // 存在的理由只有一個：評論資格要求「活動已開始」，
+            // 沒有一場過去的活動就沒辦法示範評論區長什麼樣子。
+            // 代價是它不會出現在首頁與搜尋結果裡（查詢會排除已結束的活動）
+            new DemoEvent(
+                    "【回顧場】烏克麗麗一日速成班",
+                    """
+                            四弦、小巧、好上手 —— 烏克麗麗大概是最容易在一天內\
+                            彈完一整首歌的樂器。
+
+                            課程從調音、基本三和弦到完整彈唱，\
+                            結束時每個人都會有一段自己的錄音帶回家。
+
+                            【師資介紹】
+                            由蘭響音樂教室的專任教師授課，現場提供樂器，空手來即可。""",
+                    -21, 3,
+                    Category.MUSIC_GROOVE, City.TAIPEI, "中山區",
+                    "蘭響音樂教室",
+                    "台北市中山區南京東路二段100號5樓",
+                    List.of("/images/events/guitar-02.jpg"),
+                    List.of(
+                            new DemoTicketType("單人體驗票", "含樂器租借", "690.00", 20))));
 }

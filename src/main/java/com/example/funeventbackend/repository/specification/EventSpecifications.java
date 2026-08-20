@@ -33,11 +33,21 @@ public final class EventSpecifications {
     }
 
     /**
-     * 只列還沒開始的。
-     * 已開始的活動買不到票（validatePurchasable 會擋），列出來只會誤導使用者。
+     * 只列還沒結束的。進行中的活動仍然會出現在列表上。
+     *
+     * <p>⚠️ 用 endAt 而不是 startAt 是刻意的。用 startAt 的話：
+     * <ul>
+     *   <li>為期一個月的展覽，開始第二天就從整個網站上消失了</li>
+     *   <li>「可以評論」要求活動已開始，於是<b>有評論的活動永遠不會出現在列表上</b>——
+     *       卡片上的評分做出來會永遠是「尚無評價」</li>
+     * </ul>
+     *
+     * <p>「開演即停售」這種需求由票種的 saleEndAt 表達 —— 那是主辦者自己決定的，
+     * 不該由系統一刀切成「所有活動都當單場演唱會」。
+     * OrderService.validatePurchasable 的規則與這裡一致（也是看 endAt）。
      */
-    public static Specification<Event> startsAfter(Instant instant) {
-        return (root, query, cb) -> cb.greaterThan(root.get("startAt"), instant);
+    public static Specification<Event> endsAfter(Instant instant) {
+        return (root, query, cb) -> cb.greaterThan(root.get("endAt"), instant);
     }
 
     /**

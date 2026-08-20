@@ -211,20 +211,45 @@ class EventSearchTest {
     }
 
     @Test
-    @DisplayName("⚠️ 未發布與已開始的活動不會出現在任何搜尋結果裡")
-    void neverReturnsDraftOrStartedEvents() {
+    @DisplayName("⚠️ 未發布與已結束的活動不會出現在任何搜尋結果裡")
+    void neverReturnsDraftOrEndedEvents() {
         saveEvent(lanxiang, "還沒發布的活動", Category.MUSIC_GROOVE, City.TAIPEI,
                 EventStatus.DRAFT, 15);
-        // startInDays 為負 = 已經開始了
-        saveEvent(lanxiang, "已經開始的活動", Category.MUSIC_GROOVE, City.TAIPEI,
-                EventStatus.PUBLISHED, -1);
+        // startInDays = -5 → endAt 是 -4 天，明確已經結束。
+        // ⚠️ 不能用 -1：endAt 會落在「現在」附近，測試會隨執行時機時綠時紅
+        saveEvent(lanxiang, "已經結束的活動", Category.MUSIC_GROOVE, City.TAIPEI,
+                EventStatus.PUBLISHED, -5);
 
         // 不管用什麼條件組合都不該撈到
         assertFalse(search(null, null, null).contains("還沒發布的活動"));
-        assertFalse(search(null, null, null).contains("已經開始的活動"));
+        assertFalse(search(null, null, null).contains("已經結束的活動"));
         assertTrue(search("還沒發布", null, null).isEmpty());
-        assertTrue(search("已經開始", null, null).isEmpty());
-        assertTrue(search(null, Category.MUSIC_GROOVE, City.TAIPEI).size() == 1,
+        assertTrue(search("已經結束", null, null).isEmpty());
+        assertEquals(1, search(null, Category.MUSIC_GROOVE, City.TAIPEI).size(),
                 "音樂類台北只該剩下那場吉他課");
+    }
+
+    @Test
+    @DisplayName("⭐ 進行中的活動（已開始、還沒結束）仍然要出現在列表上")
+    void includesOngoingEvents() {
+        // 昨天開始、下個月才結束 —— 展覽、營隊、長期課程都是這種形狀。
+        // 用 startAt 篩的話這種活動開始第二天就從整個網站消失了。
+        //
+        // ⚠️ 不能用 saveEvent(..., -1)：那個 helper 的 endAt 固定是 startAt + 1 天，
+        // 算出來剛好等於「現在」，測試會隨執行時機時綠時紅
+        eventRepository.save(Event.builder()
+                .organizer(lanxiang)
+                .name("進行中的展覽")
+                .description("測試用")
+                .startAt(Instant.now().minus(1, ChronoUnit.DAYS))
+                .endAt(Instant.now().plus(30, ChronoUnit.DAYS))
+                .category(Category.ART_CULTURE)
+                .city(City.TAIPEI)
+                .district("測試區")
+                .status(EventStatus.PUBLISHED)
+                .build());
+
+        assertTrue(search(null, null, null).contains("進行中的展覽"));
+        assertTrue(search("進行中", null, null).contains("進行中的展覽"));
     }
 }

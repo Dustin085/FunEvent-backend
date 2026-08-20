@@ -145,8 +145,12 @@ public class OrderService {
         if (event.getStatus() != EventStatus.PUBLISHED) {
             throw new ResourceNotFoundException(TICKET_TYPE_NOT_FOUND_MESSAGE);
         }
-        if (event.getStartAt().isBefore(now)) {
-            throw new InvalidStateTransitionException("「" + event.getName() + "」已開始，無法購票");
+        // ⚠️ 看 endAt 不是 startAt：進行中的活動仍可購票（展覽、長期課程、營隊都是這樣）。
+        // 「開演即停售」由票種的 saleEndAt 表達 —— 那是主辦者自己決定的，
+        // 不該由系統一刀切成「所有活動都當單場演唱會」。
+        // 這條規則與 EventSpecifications.endsAfter 一致，才不會出現「看得到買不到」
+        if (event.getEndAt().isBefore(now)) {
+            throw new InvalidStateTransitionException("「" + event.getName() + "」已結束，無法購票");
         }
         if (ticketType.getSaleStartAt() != null && now.isBefore(ticketType.getSaleStartAt())) {
             throw new InvalidStateTransitionException("「" + ticketType.getName() + "」尚未開始販售");

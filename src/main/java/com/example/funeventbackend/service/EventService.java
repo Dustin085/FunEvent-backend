@@ -20,6 +20,7 @@ import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.model.EventStatus;
 import com.example.funeventbackend.model.Organizer;
 import com.example.funeventbackend.model.User;
+import com.example.funeventbackend.repository.CommentRepository;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,9 @@ public class EventService {
     // 只需要「有沒有票種」這個查詢，依賴 Repository 而非 TicketTypeService，
     // 否則兩個 Service 互相注入會造成循環依賴
     private final TicketTypeRepository ticketTypeRepository;
+    // 同理：只需要評分聚合這個查詢。依賴 CommentService 會造成循環依賴 ——
+    // CommentService 需要 EventService 來取「已發布的活動」
+    private final CommentRepository commentRepository;
 
     @Transactional
     public EventResponse create(User user, CreateEventRequest dto) {
@@ -71,7 +75,7 @@ public class EventService {
         // 不會像衍生查詢那樣膨脹成條件的組合數
         List<Specification<Event>> specs = Stream.of(
                         EventSpecifications.isPublished(),
-                        EventSpecifications.startsAfter(now),
+                        EventSpecifications.endsAfter(now),
                         EventSpecifications.hasAnyCategory(criteria.categories()),
                         EventSpecifications.inAnyCity(criteria.cities()),
                         EventSpecifications.keywordMatches(criteria.keyword()))
@@ -84,7 +88,9 @@ public class EventService {
 
     @Transactional(readOnly = true)
     public EventResponse findById(Long id) {
-        return EventResponse.from(getPublishedEntity(id));
+        // ⚠️ 多一次聚合查詢。詳情頁是「一個活動」所以只會多一句 SQL；
+        // 列表頁絕對不能這樣做（12 筆 = 12 句）
+        return EventResponse.from(getPublishedEntity(id), commentRepository.findRatingSummary(id));
     }
 
     // 給其他 Service 用：只回傳已公開的活動，否則一律 404（不洩漏存在性）

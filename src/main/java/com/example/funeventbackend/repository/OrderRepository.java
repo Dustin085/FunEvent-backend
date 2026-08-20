@@ -43,6 +43,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             + "AND o.status = com.example.funeventbackend.model.OrderStatusType.PENDING")
     int markCancelled(@Param("id") Long id);
 
+    /**
+     * 這個使用者有沒有買過這個活動（且已付款）。評論資格的判斷依據。
+     *
+     * <p>⚠️ 用「COUNT > 0」而不是撈出訂單再判斷 ——
+     * 我們只需要知道「有沒有」，不需要那些資料本身。
+     */
+    @Query("SELECT COUNT(oi) > 0 FROM OrderItem oi "
+            + "WHERE oi.order.user.id = :userId "
+            + "AND oi.order.status = com.example.funeventbackend.model.OrderStatusType.PAID "
+            + "AND oi.ticketType.event.id = :eventId")
+    boolean hasPaidOrderForEvent(@Param("userId") Long userId, @Param("eventId") Long eventId);
+
     // 逾時掃描。只取 id，不撈整個實體 —— 掃描階段不需要訂單內容
     @Query("SELECT o.id FROM Order o "
             + "WHERE o.status = com.example.funeventbackend.model.OrderStatusType.PENDING "

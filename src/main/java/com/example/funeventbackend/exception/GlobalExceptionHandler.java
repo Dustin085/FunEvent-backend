@@ -31,6 +31,36 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(status).body(response);
     }
 
+    // CommentNotAllowedException：不符合評論資格（沒買過票、活動還沒開始）
+    @ExceptionHandler(CommentNotAllowedException.class)
+    public ResponseEntity<ErrorResponse> handleCommentNotAllowedException(
+            CommentNotAllowedException e,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.FORBIDDEN;
+        ErrorResponse response = ErrorResponse.of(
+                status,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
+    // AlreadyCommentedException：重複評論同一個活動
+    @ExceptionHandler(AlreadyCommentedException.class)
+    public ResponseEntity<ErrorResponse> handleAlreadyCommentedException(
+            AlreadyCommentedException e,
+            HttpServletRequest request
+    ) {
+        HttpStatus status = HttpStatus.CONFLICT;
+        ErrorResponse response = ErrorResponse.of(
+                status,
+                e.getMessage(),
+                request.getRequestURI()
+        );
+        return ResponseEntity.status(status).body(response);
+    }
+
     // OAuthProviderUnavailableException：連不上第三方，或第三方回了 5xx。
     // ⚠️ 刻意不歸成 401 —— 那不是使用者的憑證有問題，是我們或 Google 出問題
     @ExceptionHandler(OAuthProviderUnavailableException.class)
