@@ -56,6 +56,13 @@ app:
     expiration: 900000 # 15 分鐘
   refresh-token:
     expiration: 604800000 # 7 天
+  order:
+    # 建單後多久未付款就自動取消並回補庫存。
+    # Boot 會把 15m 這種寫法解析成 java.time.Duration
+    payment-timeout: 15m
+    expiry:
+      enabled: true
+      scan-interval: 60s
   oauth:
     google:
       client-id: ${GOOGLE_CLIENT_ID}

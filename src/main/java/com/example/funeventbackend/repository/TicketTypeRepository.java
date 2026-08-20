@@ -27,4 +27,12 @@ public interface TicketTypeRepository extends JpaRepository<TicketType, Long> {
     @Query("UPDATE TicketType t SET t.stock = t.stock - :quantity "
             + "WHERE t.id = :id AND t.stock >= :quantity")
     int decreaseStock(@Param("id") Long id, @Param("quantity") int quantity);
+
+    // 回補庫存（訂單逾時取消時）。
+    // ⚠️ 刻意不加 stock + quantity <= capacity 的條件 —— 那會讓「重複回補」
+    // 默默失敗，而我們要它爆掉：冪等的保證來自 Order.markCancelled 的狀態轉移，
+    // 不是這一句。ck_ticket_types_stock_within_capacity 這個 CHECK 是最後的警報器
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE TicketType t SET t.stock = t.stock + :quantity WHERE t.id = :id")
+    int restoreStock(@Param("id") Long id, @Param("quantity") int quantity);
 }

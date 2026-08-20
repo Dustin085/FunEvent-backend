@@ -110,7 +110,8 @@ class OrderQuerySqlCountTest {
 
         for (int i = 0; i < ORDER_COUNT; i++) {
             Order order = orderRepository.save(Order.builder()
-                    .user(buyer).totalAmount(new BigDecimal("1000.00")).build());
+                    .user(buyer).totalAmount(new BigDecimal("1000.00"))
+                    .expiresAt(Instant.now().plusSeconds(900)).build());
             if (firstOrderId == null) {
                 firstOrderId = order.getId();
             }

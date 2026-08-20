@@ -72,7 +72,8 @@ class PaymentFlowApiTest {
         otherToken = jwtService.generateToken(other);
 
         Order order = orderRepository.save(Order.builder()
-                .user(buyer).totalAmount(ORDER_AMOUNT).build());
+                .user(buyer).totalAmount(ORDER_AMOUNT)
+                .expiresAt(Instant.now().plusSeconds(900)).build());
         orderId = order.getId();
     }
 

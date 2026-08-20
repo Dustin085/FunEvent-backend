@@ -26,6 +26,11 @@ spring:
 app:
   demo-data:
     enabled: false
+  order:
+    expiry:
+      # ⚠️ 測試自己控制何時觸發取消，不要讓排程在背景亂動資料 ——
+      # 否則斷言會在毫無規律的時機失敗，而且非常難重現
+      enabled: false
   # 測試不會真的打 Google，填假的只是為了讓容器啟動得起來
   #（主設定的 ${GOOGLE_CLIENT_ID} 沒有預設值，@ConfigurationProperties 在啟動時
   #  就會解析它，解不開會導致所有 @SpringBootTest 啟動失敗）

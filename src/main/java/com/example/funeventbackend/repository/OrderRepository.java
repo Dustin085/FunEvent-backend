@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -32,4 +33,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
             + "o.paidAt = :paidAt WHERE o.id = :id "
             + "AND o.status = com.example.funeventbackend.model.OrderStatusType.PENDING")
     int markPaid(@Param("id") Long id, @Param("paidAt") Instant paidAt);
+
+    // 取消側與 markPaid 完全對稱：只有 PENDING 會被取消。
+    // ⭐ 回傳 1 代表「這次呼叫贏得了狀態轉移」，也就是取得回補庫存的權利；
+    // 回傳 0 代表別人先動了（付款成功、或另一個排程實例先取消），什麼都不該做
+    @Modifying(flushAutomatically = true)
+    @Query("UPDATE Order o SET o.status = com.example.funeventbackend.model.OrderStatusType.CANCELLED "
+            + "WHERE o.id = :id "
+            + "AND o.status = com.example.funeventbackend.model.OrderStatusType.PENDING")
+    int markCancelled(@Param("id") Long id);
+
+    // 逾時掃描。只取 id，不撈整個實體 —— 掃描階段不需要訂單內容
+    @Query("SELECT o.id FROM Order o "
+            + "WHERE o.status = com.example.funeventbackend.model.OrderStatusType.PENDING "
+            + "AND o.expiresAt < :now ORDER BY o.id ASC")
+    List<Long> findExpiredPendingIds(@Param("now") Instant now, Pageable pageable);
 }

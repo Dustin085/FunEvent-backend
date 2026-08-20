@@ -10,12 +10,15 @@ import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -25,6 +28,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrderService {
     private static final String TICKET_TYPE_NOT_FOUND_MESSAGE = "找不到部分票種";
     private static final String ORDER_NOT_FOUND_MESSAGE = "找不到此訂單";
@@ -32,6 +36,10 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final TicketTypeRepository ticketTypeRepository;
+
+    /** 建單後多久未付款就自動取消。Boot 會把設定值的 15m 這種寫法解析成 Duration */
+    @Value("${app.order.payment-timeout}")
+    private Duration paymentTimeout;
 
     @Transactional
     public OrderResponse create(User user, CreateOrderRequest dto) {
@@ -80,10 +88,40 @@ public class OrderService {
                 .user(user)
                 .totalAmount(totalAmount)
                 .status(OrderStatusType.PENDING)
+                // 期限在建單當下就算好並存起來，之後改設定值也不會影響這一筆
+                .expiresAt(Instant.now().plus(paymentTimeout))
                 .build());
         orderItems.forEach(order::addOrderItem);
 
         return OrderResponse.from(order, orderItemRepository.saveAll(orderItems));
+    }
+
+    /**
+     * 取消一筆逾時未付款的訂單並回補庫存。
+     *
+     * <p>⭐ 冪等的關鍵在第一句：markCancelled 是條件式 UPDATE，
+     * 只有把訂單從 PENDING 轉走的那一次會回傳 1。
+     * 這和 PaymentService 的 markPaid 是同一招、方向相反 ——
+     * 兩邊都只在「贏得狀態轉移」時才動庫存，就不可能既回補又收款。
+     *
+     * <p>因為仲裁者是資料庫，多實例部署也不需要分散式鎖。
+     *
+     * @return true 代表這次呼叫真的完成了取消；false 代表訂單已經不是 PENDING
+     * （付款成功、或已被別人取消）—— 這不是錯誤，是併發下的正常結果
+     */
+    @Transactional
+    public boolean cancelExpiredOrder(Long orderId) {
+        if (orderRepository.markCancelled(orderId) == 0) {
+            return false;
+        }
+
+        // 只有贏家會走到這裡，所以庫存不會被回補兩次
+        for (OrderItem item : orderItemRepository.findByOrderId(orderId)) {
+            // getId() 不會觸發 LAZY 代理初始化，所以這裡不需要 JOIN FETCH
+            ticketTypeRepository.restoreStock(item.getTicketType().getId(), item.getQuantity());
+        }
+        log.info("逾時未付款，訂單已取消並回補庫存 orderId={}", orderId);
+        return true;
     }
 
     @Transactional(readOnly = true)

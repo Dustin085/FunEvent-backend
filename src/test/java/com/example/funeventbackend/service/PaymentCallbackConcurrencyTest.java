@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Instant;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Queue;
@@ -67,7 +68,8 @@ class PaymentCallbackConcurrencyTest {
         User buyer = userRepository.save(User.builder()
                 .email("buyer@example.com").passwordHash("x").name("買家").role(RoleType.USER).build());
         order = orderRepository.save(Order.builder()
-                .user(buyer).totalAmount(new BigDecimal("1000.00")).build());
+                .user(buyer).totalAmount(new BigDecimal("1000.00"))
+                .expiresAt(Instant.now().plusSeconds(900)).build());
         payment = paymentRepository.save(Payment.builder()
                 .order(order)
                 .merchantTradeNo(MERCHANT_TRADE_NO)

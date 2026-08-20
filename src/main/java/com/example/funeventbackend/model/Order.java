@@ -12,7 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "orders")
+@Table(name = "orders", indexes = {
+        // 逾時掃描的查詢條件就是這兩欄。index 名稱是 schema 全域唯一的，故帶上表名
+        @Index(name = "idx_orders_status_expires_at", columnList = "status, expires_at")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -37,6 +40,17 @@ public class Order {
 
     @Column(name = "paid_at")
     private Instant paidAt;
+
+    /**
+     * 付款期限。逾時未付款會被排程取消並回補庫存。
+     *
+     * <p>⚠️ 存下來而不是用 createdAt + 設定值算：
+     * 「你有 15 分鐘完成付款」是建單當下對使用者的承諾，
+     * 改設定值時既有訂單的期限不應該跟著跳動。
+     * 前端要顯示倒數也直接讀這個欄位，不必再複製一份 timeout 常數。
+     */
+    @Column(name = "expires_at", nullable = false)
+    private Instant expiresAt;
 
     @OneToMany(mappedBy = "order", fetch = FetchType.LAZY)
     @BatchSize(size = 50)
