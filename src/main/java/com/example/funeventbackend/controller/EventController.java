@@ -2,6 +2,8 @@ package com.example.funeventbackend.controller;
 
 import com.example.funeventbackend.dto.event.CreateEventRequest;
 import com.example.funeventbackend.dto.event.EventResponse;
+import com.example.funeventbackend.dto.event.EventSearchCriteria;
+import com.example.funeventbackend.model.City;
 import com.example.funeventbackend.dto.event.EventSummaryResponse;
 import com.example.funeventbackend.dto.event.UpdateEventRequest;
 import com.example.funeventbackend.model.Category;
@@ -51,12 +53,17 @@ public class EventController {
 
     @GetMapping
     public ResponseEntity<PagedModel<EventSummaryResponse>> list(
+            @RequestParam(required = false) String q,
             @RequestParam(required = false) Category category,
+            @RequestParam(required = false) City city,
             @PageableDefault(size = 12, sort = "startAt", direction = Sort.Direction.ASC)
             Pageable pageable
     ) {
-        // size=12 好排格線；依 startAt 升冪 =「即將登場」，售票網站的預設語意
-        return ResponseEntity.ok(new PagedModel<>(eventService.findPublished(category, pageable)));
+        // size=12 好排格線；依 startAt 升冪 =「即將登場」，售票網站的預設語意。
+        // ⚠️ category / city 傳無效值時 Spring 會拋 MethodArgumentTypeMismatchException，
+        // GlobalExceptionHandler 已經把它處理成 400（而不是 500）
+        EventSearchCriteria criteria = new EventSearchCriteria(q, category, city);
+        return ResponseEntity.ok(new PagedModel<>(eventService.search(criteria, pageable)));
     }
 
     @GetMapping("/{id}")

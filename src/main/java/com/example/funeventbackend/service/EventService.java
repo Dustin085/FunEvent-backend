@@ -1,6 +1,13 @@
 package com.example.funeventbackend.service;
 
 import com.example.funeventbackend.dto.event.CreateEventRequest;
+import com.example.funeventbackend.dto.event.EventSearchCriteria;
+import com.example.funeventbackend.repository.specification.EventSpecifications;
+import org.springframework.data.jpa.domain.Specification;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 import com.example.funeventbackend.dto.event.EventResponse;
 import com.example.funeventbackend.dto.event.EventSummaryResponse;
 import com.example.funeventbackend.dto.event.UpdateEventRequest;
@@ -58,17 +65,21 @@ public class EventService {
     }
 
     @Transactional(readOnly = true)
-    public Page<EventSummaryResponse> findPublished(Category category, Pageable pageable) {
-        // 已開始的活動買不到票（validatePurchasable 會擋），列出來只會誤導使用者
+    public Page<EventSummaryResponse> search(EventSearchCriteria criteria, Pageable pageable) {
         Instant now = Instant.now();
-        // 衍生查詢無法表達「參數為 null 就忽略這個條件」，所以拆成兩個方法。
-        // ⚠️ 之後篩選條件變多（地區＋分類＋日期）時，這種寫法會膨脹成組合數，
-        //    那時要換成 Specification 或 QueryDSL
-        Page<Event> events = category == null
-                ? eventRepository.findByStatusAndStartAtAfter(EventStatus.PUBLISHED, now, pageable)
-                : eventRepository.findByStatusAndStartAtAfterAndCategory(
-                        EventStatus.PUBLISHED, now, category, pageable);
-        return events.map(EventSummaryResponse::from);
+        // 條件不適用的回傳 null，在這裡濾掉 —— 加新篩選只要多一行，
+        // 不會像衍生查詢那樣膨脹成條件的組合數
+        List<Specification<Event>> specs = Stream.of(
+                        EventSpecifications.isPublished(),
+                        EventSpecifications.startsAfter(now),
+                        EventSpecifications.hasCategory(criteria.category()),
+                        EventSpecifications.inCity(criteria.city()),
+                        EventSpecifications.keywordMatches(criteria.keyword()))
+                .filter(Objects::nonNull)
+                .toList();
+
+        return eventRepository.findAll(Specification.allOf(specs), pageable)
+                .map(EventSummaryResponse::from);
     }
 
     @Transactional(readOnly = true)
