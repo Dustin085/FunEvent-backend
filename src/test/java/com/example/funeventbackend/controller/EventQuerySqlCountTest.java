@@ -10,14 +10,9 @@ import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.model.EventImage;
 import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
-import com.example.funeventbackend.repository.OrderItemRepository;
-import com.example.funeventbackend.repository.OrderRepository;
 import com.example.funeventbackend.repository.OrganizerRepository;
-import com.example.funeventbackend.repository.PasswordResetTokenRepository;
-import com.example.funeventbackend.repository.PaymentRepository;
-import com.example.funeventbackend.repository.RefreshTokenRepository;
-import com.example.funeventbackend.repository.TicketTypeRepository;
 import com.example.funeventbackend.repository.UserRepository;
+import com.example.funeventbackend.support.DatabaseCleaner;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
@@ -64,30 +59,11 @@ class EventQuerySqlCountTest {
     @Autowired
     private EventImageRepository eventImageRepository;
     @Autowired
-    private TicketTypeRepository ticketTypeRepository;
-    @Autowired
-    private OrderRepository orderRepository;
-    @Autowired
-    private OrderItemRepository orderItemRepository;
-    @Autowired
-    private PaymentRepository paymentRepository;
-    @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
-    @Autowired
-    private PasswordResetTokenRepository passwordResetTokenRepository;
+    private DatabaseCleaner databaseCleaner;
 
     @BeforeEach
     void setUp() {
-        paymentRepository.deleteAll();
-        orderItemRepository.deleteAll();
-        orderRepository.deleteAll();
-        ticketTypeRepository.deleteAll();
-        eventImageRepository.deleteAll();
-        eventRepository.deleteAll();
-        organizerRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        passwordResetTokenRepository.deleteAll();
-        userRepository.deleteAll();
+        databaseCleaner.clean();
 
         for (int i = 0; i < EVENT_COUNT; i++) {
             User seller = userRepository.save(User.builder()

@@ -5,17 +5,11 @@ import com.example.funeventbackend.model.OrderStatusType;
 import com.example.funeventbackend.model.PaymentStatusType;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
-import com.example.funeventbackend.repository.EventImageRepository;
-import com.example.funeventbackend.repository.EventRepository;
-import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
-import com.example.funeventbackend.repository.OrganizerRepository;
-import com.example.funeventbackend.repository.PasswordResetTokenRepository;
 import com.example.funeventbackend.repository.PaymentRepository;
-import com.example.funeventbackend.repository.RefreshTokenRepository;
-import com.example.funeventbackend.repository.TicketTypeRepository;
 import com.example.funeventbackend.repository.UserRepository;
 import com.example.funeventbackend.security.JwtService;
+import com.example.funeventbackend.support.DatabaseCleaner;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,21 +52,9 @@ class PaymentFlowApiTest {
     @Autowired
     private OrderRepository orderRepository;
     @Autowired
-    private OrderItemRepository orderItemRepository;
-    @Autowired
-    private TicketTypeRepository ticketTypeRepository;
-    @Autowired
-    private EventImageRepository eventImageRepository;
-    @Autowired
-    private EventRepository eventRepository;
-    @Autowired
-    private OrganizerRepository organizerRepository;
-    @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
-    @Autowired
-    private PasswordResetTokenRepository passwordResetTokenRepository;
-    @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private DatabaseCleaner databaseCleaner;
 
     private String buyerToken;
     private String otherToken;
@@ -80,16 +62,7 @@ class PaymentFlowApiTest {
 
     @BeforeEach
     void setUp() {
-        paymentRepository.deleteAll();
-        orderItemRepository.deleteAll();
-        orderRepository.deleteAll();
-        ticketTypeRepository.deleteAll();
-        eventImageRepository.deleteAll();
-        eventRepository.deleteAll();
-        organizerRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        passwordResetTokenRepository.deleteAll();
-        userRepository.deleteAll();
+        databaseCleaner.clean();
 
         User buyer = userRepository.save(User.builder()
                 .email("buyer@example.com").passwordHash("x").name("買家").role(RoleType.USER).build());

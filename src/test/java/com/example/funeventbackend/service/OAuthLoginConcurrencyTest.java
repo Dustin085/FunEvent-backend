@@ -1,7 +1,7 @@
 package com.example.funeventbackend.service;
 
 import com.example.funeventbackend.dto.auth.AuthResponse;
-import com.example.funeventbackend.repository.RefreshTokenRepository;
+import com.example.funeventbackend.support.DatabaseCleaner;
 import com.example.funeventbackend.repository.UserOAuthAccountRepository;
 import com.example.funeventbackend.repository.UserRepository;
 import com.example.funeventbackend.security.oauth.GoogleIdTokenClaims;
@@ -56,14 +56,11 @@ class OAuthLoginConcurrencyTest {
     @Autowired
     private UserOAuthAccountRepository userOAuthAccountRepository;
     @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
+    private DatabaseCleaner databaseCleaner;
 
     @BeforeEach
     void setUp() {
-        // ⚠️ 先刪子表再刪父表
-        userOAuthAccountRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        userRepository.deleteAll();
+        databaseCleaner.clean();
 
         when(googleIdTokenVerifier.verify(anyString()))
                 .thenReturn(new GoogleIdTokenClaims(GOOGLE_SUB, EMAIL, true, "併發測試"));

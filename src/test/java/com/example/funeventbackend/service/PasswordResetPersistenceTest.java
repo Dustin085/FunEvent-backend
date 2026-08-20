@@ -3,17 +3,10 @@ package com.example.funeventbackend.service;
 import com.example.funeventbackend.model.PasswordResetToken;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
-import com.example.funeventbackend.repository.EventImageRepository;
-import com.example.funeventbackend.repository.EventRepository;
-import com.example.funeventbackend.repository.OrderItemRepository;
-import com.example.funeventbackend.repository.OrderRepository;
-import com.example.funeventbackend.repository.OrganizerRepository;
 import com.example.funeventbackend.repository.PasswordResetTokenRepository;
-import com.example.funeventbackend.repository.PaymentRepository;
-import com.example.funeventbackend.repository.RefreshTokenRepository;
-import com.example.funeventbackend.repository.TicketTypeRepository;
 import com.example.funeventbackend.repository.UserRepository;
 import com.example.funeventbackend.security.TokenGenerator;
+import com.example.funeventbackend.support.DatabaseCleaner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -64,36 +57,13 @@ class PasswordResetPersistenceTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
     @Autowired
-    private PaymentRepository paymentRepository;
-    @Autowired
-    private OrderItemRepository orderItemRepository;
-    @Autowired
-    private OrderRepository orderRepository;
-    @Autowired
-    private TicketTypeRepository ticketTypeRepository;
-    @Autowired
-    private EventImageRepository eventImageRepository;
-    @Autowired
-    private EventRepository eventRepository;
-    @Autowired
-    private OrganizerRepository organizerRepository;
-    @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
+    private DatabaseCleaner databaseCleaner;
 
     private User user;
 
     @BeforeEach
     void setUp() {
-        paymentRepository.deleteAll();
-        orderItemRepository.deleteAll();
-        orderRepository.deleteAll();
-        ticketTypeRepository.deleteAll();
-        eventImageRepository.deleteAll();
-        eventRepository.deleteAll();
-        organizerRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        passwordResetTokenRepository.deleteAll();
-        userRepository.deleteAll();
+        databaseCleaner.clean();
 
         user = userRepository.save(User.builder()
                 .email(EMAIL)

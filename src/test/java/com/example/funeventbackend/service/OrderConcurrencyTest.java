@@ -9,13 +9,13 @@ import com.example.funeventbackend.model.Organizer;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.TicketType;
 import com.example.funeventbackend.model.User;
-import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
 import com.example.funeventbackend.repository.OrganizerRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
 import com.example.funeventbackend.repository.UserRepository;
+import com.example.funeventbackend.support.DatabaseCleaner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,8 +58,6 @@ class OrderConcurrencyTest {
     @Autowired
     private OrganizerRepository organizerRepository;
     @Autowired
-    private EventImageRepository eventImageRepository;
-    @Autowired
     private EventRepository eventRepository;
     @Autowired
     private TicketTypeRepository ticketTypeRepository;
@@ -67,6 +65,8 @@ class OrderConcurrencyTest {
     private OrderRepository orderRepository;
     @Autowired
     private OrderItemRepository orderItemRepository;
+    @Autowired
+    private DatabaseCleaner databaseCleaner;
 
     private User buyer;
     private TicketType lastTicket;
@@ -74,13 +74,7 @@ class OrderConcurrencyTest {
     @BeforeEach
     void setUp() {
         // 依外鍵相依順序由子到父清空
-        orderItemRepository.deleteAll();
-        orderRepository.deleteAll();
-        ticketTypeRepository.deleteAll();
-        eventImageRepository.deleteAll();
-        eventRepository.deleteAll();
-        organizerRepository.deleteAll();
-        userRepository.deleteAll();
+        databaseCleaner.clean();
 
         User seller = userRepository.save(User.builder()
                 .email("seller@example.com")

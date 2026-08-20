@@ -2,15 +2,11 @@ package com.example.funeventbackend.controller;
 
 import com.example.funeventbackend.model.City;
 import com.example.funeventbackend.model.Event;
-import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
-import com.example.funeventbackend.repository.OrganizerRepository;
-import com.example.funeventbackend.repository.PasswordResetTokenRepository;
-import com.example.funeventbackend.repository.RefreshTokenRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
-import com.example.funeventbackend.repository.UserRepository;
+import com.example.funeventbackend.support.DatabaseCleaner;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -52,12 +48,6 @@ class PurchaseFlowApiTest {
     @Autowired
     private MockMvc mockMvc;
     @Autowired
-    private UserRepository userRepository;
-    @Autowired
-    private OrganizerRepository organizerRepository;
-    @Autowired
-    private EventImageRepository eventImageRepository;
-    @Autowired
     private EventRepository eventRepository;
     @Autowired
     private TicketTypeRepository ticketTypeRepository;
@@ -66,23 +56,13 @@ class PurchaseFlowApiTest {
     @Autowired
     private OrderItemRepository orderItemRepository;
     @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
-    @Autowired
-    private PasswordResetTokenRepository passwordResetTokenRepository;
+    private DatabaseCleaner databaseCleaner;
 
     @BeforeEach
     void setUp() {
         // 沒有 @Transactional 就沒有自動回滾，依外鍵相依順序由子到父清空。
         // 登入會寫入 refresh_tokens，所以它也要在 users 之前清掉。
-        orderItemRepository.deleteAll();
-        orderRepository.deleteAll();
-        ticketTypeRepository.deleteAll();
-        eventImageRepository.deleteAll();
-        eventRepository.deleteAll();
-        organizerRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        passwordResetTokenRepository.deleteAll();
-        userRepository.deleteAll();
+        databaseCleaner.clean();
     }
 
     @Test

@@ -7,7 +7,7 @@ import com.example.funeventbackend.exception.OAuthOnlyAccountException;
 import com.example.funeventbackend.model.OAuthProvider;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
-import com.example.funeventbackend.repository.RefreshTokenRepository;
+import com.example.funeventbackend.support.DatabaseCleaner;
 import com.example.funeventbackend.repository.UserOAuthAccountRepository;
 import com.example.funeventbackend.repository.UserRepository;
 import com.example.funeventbackend.security.oauth.GoogleIdTokenClaims;
@@ -55,17 +55,13 @@ class OAuthLoginServiceTest {
     @Autowired
     private UserOAuthAccountRepository userOAuthAccountRepository;
     @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
-    @Autowired
     private PasswordEncoder passwordEncoder;
+    @Autowired
+    private DatabaseCleaner databaseCleaner;
 
     @BeforeEach
     void setUp() {
-        // ⚠️ 順序：先刪子表再刪父表。
-        // user_oauth_accounts 與 refresh_tokens 都有 FK 指向 users
-        userOAuthAccountRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        userRepository.deleteAll();
+        databaseCleaner.clean();
     }
 
     private void mockClaims(String sub, String email, boolean emailVerified, String name) {

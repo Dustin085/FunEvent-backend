@@ -10,15 +10,13 @@ import com.example.funeventbackend.model.Organizer;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.TicketType;
 import com.example.funeventbackend.model.User;
-import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
 import com.example.funeventbackend.repository.OrganizerRepository;
-import com.example.funeventbackend.repository.PasswordResetTokenRepository;
-import com.example.funeventbackend.repository.RefreshTokenRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
 import com.example.funeventbackend.repository.UserRepository;
+import com.example.funeventbackend.support.DatabaseCleaner;
 import com.jayway.jsonpath.JsonPath;
 import jakarta.persistence.EntityManagerFactory;
 import org.hibernate.SessionFactory;
@@ -72,8 +70,6 @@ class OrderQuerySqlCountTest {
     @Autowired
     private OrganizerRepository organizerRepository;
     @Autowired
-    private EventImageRepository eventImageRepository;
-    @Autowired
     private EventRepository eventRepository;
     @Autowired
     private TicketTypeRepository ticketTypeRepository;
@@ -82,23 +78,13 @@ class OrderQuerySqlCountTest {
     @Autowired
     private OrderItemRepository orderItemRepository;
     @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
-    @Autowired
-    private PasswordResetTokenRepository passwordResetTokenRepository;
+    private DatabaseCleaner databaseCleaner;
 
     private Long firstOrderId;
 
     @BeforeEach
     void setUp() {
-        orderItemRepository.deleteAll();
-        orderRepository.deleteAll();
-        ticketTypeRepository.deleteAll();
-        eventImageRepository.deleteAll();
-        eventRepository.deleteAll();
-        organizerRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        passwordResetTokenRepository.deleteAll();
-        userRepository.deleteAll();
+        databaseCleaner.clean();
 
         User seller = userRepository.save(User.builder()
                 .email("seller@example.com").passwordHash("x").name("賣家").role(RoleType.USER).build());

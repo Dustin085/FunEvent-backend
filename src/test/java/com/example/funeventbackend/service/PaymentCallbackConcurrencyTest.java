@@ -7,16 +7,10 @@ import com.example.funeventbackend.model.PaymentStatusType;
 import com.example.funeventbackend.model.RoleType;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.payment.PaymentCallbackOutcome;
-import com.example.funeventbackend.repository.EventImageRepository;
-import com.example.funeventbackend.repository.EventRepository;
-import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.OrderRepository;
-import com.example.funeventbackend.repository.OrganizerRepository;
-import com.example.funeventbackend.repository.PasswordResetTokenRepository;
 import com.example.funeventbackend.repository.PaymentRepository;
-import com.example.funeventbackend.repository.RefreshTokenRepository;
-import com.example.funeventbackend.repository.TicketTypeRepository;
 import com.example.funeventbackend.repository.UserRepository;
+import com.example.funeventbackend.support.DatabaseCleaner;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,21 +52,9 @@ class PaymentCallbackConcurrencyTest {
     @Autowired
     private OrderRepository orderRepository;
     @Autowired
-    private OrderItemRepository orderItemRepository;
-    @Autowired
-    private TicketTypeRepository ticketTypeRepository;
-    @Autowired
-    private EventImageRepository eventImageRepository;
-    @Autowired
-    private EventRepository eventRepository;
-    @Autowired
-    private OrganizerRepository organizerRepository;
-    @Autowired
-    private RefreshTokenRepository refreshTokenRepository;
-    @Autowired
-    private PasswordResetTokenRepository passwordResetTokenRepository;
-    @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private DatabaseCleaner databaseCleaner;
 
     private Payment payment;
     private Order order;
@@ -80,16 +62,7 @@ class PaymentCallbackConcurrencyTest {
     @BeforeEach
     void setUp() {
         // 依外鍵相依順序由子到父清空。payments 參照 orders，要排在它前面
-        paymentRepository.deleteAll();
-        orderItemRepository.deleteAll();
-        orderRepository.deleteAll();
-        ticketTypeRepository.deleteAll();
-        eventImageRepository.deleteAll();
-        eventRepository.deleteAll();
-        organizerRepository.deleteAll();
-        refreshTokenRepository.deleteAll();
-        passwordResetTokenRepository.deleteAll();
-        userRepository.deleteAll();
+        databaseCleaner.clean();
 
         User buyer = userRepository.save(User.builder()
                 .email("buyer@example.com").passwordHash("x").name("買家").role(RoleType.USER).build());
