@@ -44,6 +44,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     int markCancelled(@Param("id") Long id);
 
     /**
+     * 這個活動有沒有任何人付款成功。取消活動前的檢查依據。
+     *
+     * <p>⚠️ 有人付過錢就不能單方面取消 —— 那需要一整套退款流程。
+     */
+    @Query("SELECT COUNT(oi) > 0 FROM OrderItem oi "
+            + "WHERE oi.order.status = com.example.funeventbackend.model.OrderStatusType.PAID "
+            + "AND oi.ticketType.event.id = :eventId")
+    boolean existsPaidOrderForEvent(@Param("eventId") Long eventId);
+
+    /**
      * 這個使用者有沒有買過這個活動（且已付款）。評論資格的判斷依據。
      *
      * <p>⚠️ 用「COUNT > 0」而不是撈出訂單再判斷 ——

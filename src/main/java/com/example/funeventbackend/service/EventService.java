@@ -1,35 +1,31 @@
 package com.example.funeventbackend.service;
 
-import com.example.funeventbackend.dto.event.CreateEventRequest;
-import com.example.funeventbackend.dto.event.EventSearchCriteria;
-import com.example.funeventbackend.repository.specification.EventSpecifications;
-import org.springframework.data.jpa.domain.Specification;
-
-import java.util.List;
-import java.util.Objects;
-import java.util.stream.Stream;
-import com.example.funeventbackend.dto.event.EventResponse;
-import com.example.funeventbackend.dto.event.EventSummaryResponse;
-import com.example.funeventbackend.dto.event.UpdateEventRequest;
+import com.example.funeventbackend.dto.event.*;
+import com.example.funeventbackend.dto.ticket.TicketTypeResponse;
 import com.example.funeventbackend.exception.InvalidEventDataException;
 import com.example.funeventbackend.exception.InvalidStateTransitionException;
 import com.example.funeventbackend.exception.ResourceAccessDeniedException;
 import com.example.funeventbackend.exception.ResourceNotFoundException;
-import com.example.funeventbackend.model.Category;
 import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.model.EventStatus;
 import com.example.funeventbackend.model.Organizer;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.CommentRepository;
 import com.example.funeventbackend.repository.EventRepository;
+import com.example.funeventbackend.repository.OrderRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
+import com.example.funeventbackend.repository.specification.EventSpecifications;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -44,6 +40,8 @@ public class EventService {
     // 同理：只需要評分聚合這個查詢。依賴 CommentService 會造成循環依賴 ——
     // CommentService 需要 EventService 來取「已發布的活動」
     private final CommentRepository commentRepository;
+    // 取消活動前要確認沒有人付過款
+    private final OrderRepository orderRepository;
 
     @Transactional
     public EventResponse create(User user, CreateEventRequest dto) {
@@ -91,6 +89,65 @@ public class EventService {
         // ⚠️ 多一次聚合查詢。詳情頁是「一個活動」所以只會多一句 SQL；
         // 列表頁絕對不能這樣做（12 筆 = 12 句）
         return EventResponse.from(getPublishedEntity(id), commentRepository.findRatingSummary(id));
+    }
+
+    /**
+     * 主辦者後台的活動列表 —— 含草稿與已取消。
+     *
+     * <p>⚠️ 和 search() 是**兩種相反的安全預設**：那支是公開的（只回已發布且未結束），
+     * 這支只給擁有者（回全部）。刻意分成兩支而不是「同一支依身分決定可見性」——
+     * 後者要在每個讀取路徑都記得判斷，漏一個就洩漏草稿。
+     */
+    @Transactional(readOnly = true)
+    public Page<OrganizerEventSummaryResponse> findMine(
+            User user, EventStatus status, Pageable pageable) {
+        Long organizerId = organizerService.getEntityByUser(user).getId();
+        Page<Event> events = status == null
+                ? eventRepository.findByOrganizerId(organizerId, pageable)
+                : eventRepository.findByOrganizerIdAndStatus(organizerId, status, pageable);
+        return events.map(OrganizerEventSummaryResponse::from);
+    }
+
+    /**
+     * 後台的編輯頁：活動與票種一次拿齊。
+     *
+     * <p>⚠️ 這裡直接打 ticketTypeRepository 而不是 TicketTypeService.findByEventId ——
+     * 那個方法會先呼叫 getPublishedEntity，草稿一律 404（那對公開端點是對的）。
+     * 這裡的擁有權已經由 getOwnedEntity 驗過了。
+     */
+    @Transactional(readOnly = true)
+    public OrganizerEventDetailResponse findMineById(User user, Long eventId) {
+        Event event = getOwnedEntity(user, eventId);
+        List<TicketTypeResponse> ticketTypes =
+                ticketTypeRepository.findByEventIdOrderByIdAsc(eventId)
+                        .stream()
+                        .map(TicketTypeResponse::from)
+                        .toList();
+        // 用不帶評分的那個 from() —— 編輯活動不需要評分聚合
+        return new OrganizerEventDetailResponse(EventResponse.from(event), ticketTypes);
+    }
+
+    @Transactional
+    public EventResponse cancel(User user, Long eventId) {
+        // 悲觀鎖：避免「讀狀態 → 判斷 → 寫狀態」之間被插隊
+        Event event = eventRepository.findByIdForUpdate(eventId)
+                .orElseThrow(() -> new ResourceNotFoundException(EVENT_NOT_FOUND_MESSAGE));
+        assertOwnedBy(user, event);
+
+        if (event.getStatus() == EventStatus.CANCELLED) {
+            throw new InvalidStateTransitionException("活動已經是取消狀態");
+        }
+        // ⚠️ 有人付過錢就不能單方面取消 —— 那需要一整套退款流程
+        //（退給誰、退多少、綠界的退款 API、部分退款、退款失敗的重試）。
+        // 現在明確擋下來，而不是取消完留下一堆「付了錢卻沒有活動」的訂單
+        if (orderRepository.existsPaidOrderForEvent(eventId)) {
+            throw new InvalidStateTransitionException(
+                    "已有付款完成的訂單，請先聯繫客服處理退款");
+        }
+
+        // managed entity，髒檢查會在提交時寫入
+        event.setStatus(EventStatus.CANCELLED);
+        return EventResponse.from(event);
     }
 
     // 給其他 Service 用：只回傳已公開的活動，否則一律 404（不洩漏存在性）

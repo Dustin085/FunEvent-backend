@@ -53,6 +53,19 @@ public class EventController {
         return ResponseEntity.status(HttpStatus.OK).body(eventService.publish(principal.getUser(), id));
     }
 
+    /**
+     * 取消活動。放在 publish 旁邊而不是 /api/organizers 底下 ——
+     * ⚠️ 只有「讀取」需要分公開／擁有者兩種視角，寫入本來就一定要驗擁有權，
+     * 不存在「公開的寫入」。
+     */
+    @PatchMapping("/{id}/cancel")
+    public ResponseEntity<EventResponse> cancel(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(eventService.cancel(principal.getUser(), id));
+    }
+
     @GetMapping
     public ResponseEntity<PagedModel<EventSummaryResponse>> list(
             @RequestParam(required = false) String q,

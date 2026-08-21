@@ -34,6 +34,18 @@ public class OrganizerService {
         return OrganizerResponse.from(savedOrganizer);
     }
 
+    /**
+     * 目前使用者的主辦者身分。
+     *
+     * <p>⚠️ 不是主辦者時會拋 NotOrganizerException（403）。
+     * 前端把它當成「還沒有主辦者身分」而不是錯誤 ——
+     * 和 getCurrentUser() 遇到 401 回傳 null 是同一個模式。
+     */
+    @Transactional(readOnly = true)
+    public OrganizerResponse getMine(User user) {
+        return OrganizerResponse.from(getEntityByUser(user));
+    }
+
     @Transactional(readOnly = true)
     public Organizer getEntityByUser(User user) {
         return organizerRepository.findByUser(user)

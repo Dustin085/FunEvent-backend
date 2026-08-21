@@ -1,6 +1,7 @@
 package com.example.funeventbackend.repository;
 
 import com.example.funeventbackend.model.Event;
+import com.example.funeventbackend.model.EventStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -36,6 +37,19 @@ public interface EventRepository extends JpaRepository<Event, Long>,
 
     // 發出 SELECT ... FOR UPDATE，鎖住該列直到交易結束，
     // 避免「讀狀態 → 判斷 → 寫狀態」之間被其他交易插隊（TOCTOU）
+    /**
+     * 主辦者自己的活動，含草稿與已取消。
+     *
+     * <p>⚠️ 和公開列表最大的差別：不篩 status、不篩時間。
+     * 主辦者要看得到全部，包含已結束的（那是他的歷史紀錄）。
+     */
+    @EntityGraph(attributePaths = "organizer")
+    Page<Event> findByOrganizerId(Long organizerId, Pageable pageable);
+
+    @EntityGraph(attributePaths = "organizer")
+    Page<Event> findByOrganizerIdAndStatus(
+            Long organizerId, EventStatus status, Pageable pageable);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT e FROM Event e WHERE e.id = :id")
     Optional<Event> findByIdForUpdate(@Param("id") Long id);
