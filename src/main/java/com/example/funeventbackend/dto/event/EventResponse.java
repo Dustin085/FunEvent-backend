@@ -20,6 +20,12 @@ public record EventResponse(
         String categoryCode,
         /** 顯示用（例如「音樂律動」） */
         String categoryName,
+        /**
+         * 常數名（例如 NEW_TAIPEI）。
+         * ⚠️ 編輯表單要用它把 select 設回原值 —— 顯示用的簡稱不能拿來當識別碼。
+         * 和 categoryCode / categoryName 是同一個模式
+         */
+        String cityCode,
         /** 已轉成簡稱（例如「新北」），前端不必再維護一份對照表 */
         String city,
         String district,
@@ -51,6 +57,7 @@ public record EventResponse(
                 event.getEndAt(),
                 event.getCategory().name(),
                 event.getCategory().getDisplayName(),
+                event.getCity().name(),
                 event.getCity().getShortName(),
                 event.getDistrict(),
                 event.getLocationName(),
@@ -74,6 +81,7 @@ public record EventResponse(
                 event.getEndAt(),
                 event.getCategory().name(),
                 event.getCategory().getDisplayName(),
+                event.getCity().name(),
                 event.getCity().getShortName(),
                 event.getDistrict(),
                 event.getLocationName(),
