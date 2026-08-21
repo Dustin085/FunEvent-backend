@@ -154,12 +154,19 @@ class OrderQuerySqlCountTest {
         //   ① users        JwtAuthenticationFilter 每個請求查一次使用者
         //   ② orders       分頁查詢（結果少於一頁且 offset=0，Spring Data 會省略 count 查詢）
         //   ③ order_items  where order_id in (...)，由 Order.orderItems 的 @BatchSize 合併
-        // 沒有 ticket_types 查詢 —— 代理的 getId() 不會觸發初始化。
-        assertEquals(3, listStatements,
+        //   ④ ticket_types where id in (...)，由 TicketType 類別層級的 @BatchSize 合併
+        //   ⑤ events       where id in (...)，由 Event 類別層級的 @BatchSize 合併
+        //
+        // ⚠️ ④⑤ 是為了在訂單上顯示「活動名稱」才出現的。
+        // 那條路徑是 orderItem → ticketType → event，兩層都是 LAZY 代理；
+        // 少了類別層級的 @BatchSize，這個數字會變成 3 + 2N（實測 43）。
+        // 這兩句是「每頁一次」的固定成本，不會隨筆數增加
+        assertEquals(5, listStatements,
                 "訂單列表的 SQL 句數變了，檢查是不是 @BatchSize 失效或多了 1+N");
-        // 單筆的 2 句：① users ② orders left join order_items（@EntityGraph）
-        assertEquals(2, singleStatements,
-                "單筆訂單的 SQL 句數變了，檢查 @EntityGraph 是否還在");
+        // 單筆的 4 句：① users ② orders left join order_items（@EntityGraph）
+        //              ③ ticket_types ④ events（同樣為了活動名稱）
+        assertEquals(4, singleStatements,
+                "單筆訂單的 SQL 句數變了，檢查 @EntityGraph 與 @BatchSize 是否還在");
     }
 
     private String login() throws Exception {

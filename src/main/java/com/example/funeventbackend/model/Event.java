@@ -25,6 +25,10 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+// ⚠️ 類別層級的 @BatchSize（批次初始化 to-one 代理），
+// 和下方 images 上那個（批次載入集合）是不同用途。
+// 訂單明細要顯示活動名稱時，靠它把 N 句 events 查詢併成一句
+@BatchSize(size = 50)
 public class Event {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

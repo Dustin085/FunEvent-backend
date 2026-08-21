@@ -148,7 +148,7 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public EventSalesSummary getEventSalesSummary(User user, Long eventId) {
-        eventService.getOwnedEntity(user, eventId);
+        Event event = eventService.getOwnedEntity(user, eventId);
 
         long paidQuantity = 0;
         BigDecimal paidAmount = BigDecimal.ZERO;
@@ -167,7 +167,8 @@ public class OrderService {
             }
         }
         // ⚠️ 沒有任何訂單時 sumByStatus 回空 List，這裡要給 0 而不是 null
-        return new EventSalesSummary(paidQuantity, paidAmount, pendingQuantity);
+        return new EventSalesSummary(
+                event.getName(), paidQuantity, paidAmount, pendingQuantity);
     }
 
     @Transactional(readOnly = true)

@@ -2,6 +2,7 @@ package com.example.funeventbackend.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -35,6 +36,12 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+// ⚠️ 類別層級的 @BatchSize 批次初始化「LAZY 的 to-one 代理」——
+// 和掛在集合上的那種是不同用途。訂單明細要顯示活動名稱時，
+// 路徑是 orderItem → ticketType → event，兩層代理都會被初始化；
+// 沒有它每一筆明細都會各發一句查詢（1+N）。
+// OrderQuerySqlCountTest 的句數斷言就是這件事的保護網
+@BatchSize(size = 50)
 public class TicketType {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
