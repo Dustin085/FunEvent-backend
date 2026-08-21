@@ -45,7 +45,9 @@ public class EventService {
 
     @Transactional
     public EventResponse create(User user, CreateEventRequest dto) {
-        validateEventDates(dto.startAt(), dto.endAt());
+        validateEventPeriod(dto.startAt(), dto.endAt());
+        // 建立一個已經結束的活動沒有意義
+        validateNotEnded(dto.endAt());
         // 檢查 User 是否有 Organizer 身分
         Organizer organizer = organizerService.getEntityByUser(user);
         // 建立新 Event Entity
@@ -174,8 +176,9 @@ public class EventService {
 
     @Transactional
     public EventResponse update(User user, Long eventId, UpdateEventRequest dto) {
-        // 驗證活動時間是否有效
-        validateEventDates(dto.startAt(), dto.endAt());
+        // ⚠️ 只檢查「結束晚於開始」，不檢查「是否已結束」——
+        // 主辦者必須能修正已經開始、甚至已經結束的活動（改錯字、補地址）
+        validateEventPeriod(dto.startAt(), dto.endAt());
         // 撈出 Event + 權限檢查
         // 悲觀鎖撈出 Event，鎖住直到交易結束
         Event event = eventRepository.findByIdForUpdate(eventId)
@@ -213,21 +216,43 @@ public class EventService {
         if (!ticketTypeRepository.existsByEventId(eventId)) {
             throw new InvalidStateTransitionException("活動至少要有一個票種才能發布");
         }
-        // 開始時間還沒過
-        if (event.getStartAt().isBefore(Instant.now())) {
-            throw new InvalidStateTransitionException("活動開始時間已過，無法發布");
+        // ⚠️ 看 endAt 不是 startAt：進行中的展覽／營隊仍然可以上架。
+        // 這條規則和列表查詢、購票檢查一致
+        if (event.getEndAt().isBefore(Instant.now())) {
+            throw new InvalidStateTransitionException("活動已經結束，無法發布");
         }
         // 修改 status。event 是 managed entity，髒檢查會在提交時寫入，不需要 save()
         event.setStatus(EventStatus.PUBLISHED);
         return EventResponse.from(event);
     }
 
-    private void validateEventDates(Instant startAt, Instant endAt) {
+    /**
+     * 結構檢查：結束一定要晚於開始。
+     *
+     * <p>這是「這組時間本身成不成立」的問題，任何時候都適用 ——
+     * 建立、更新都要檢查。
+     */
+    private void validateEventPeriod(Instant startAt, Instant endAt) {
         if (!endAt.isAfter(startAt)) {
             throw new InvalidEventDataException("活動結束時間必須晚於開始時間");
         }
-        if (startAt.isBefore(Instant.now())) {
-            throw new InvalidEventDataException("活動開始時間不能早於現在");
+    }
+
+    /**
+     * 「向前看」的動作專用：不能是已經結束的活動。
+     *
+     * <p>⚠️ 用 endAt 不是 startAt。用 startAt 的話，一個已經開跑的月長展覽
+     * 就永遠無法上架 —— 而我們已經決定「進行中的活動是一等公民」
+     *（會被列出、可以購票，見 {@code EventSpecifications.endsAfter}
+     * 與 {@code OrderService.validatePurchasable}）。
+     *
+     * <p>⚠️ update 刻意<b>不</b>呼叫這個：維護既有資料是另一回事，
+     * 主辦者必須能修正已經開始、甚至已經結束的活動（改錯字、補地址）。
+     * 擋住的話連一個錯字都改不了。
+     */
+    private void validateNotEnded(Instant endAt) {
+        if (endAt.isBefore(Instant.now())) {
+            throw new InvalidEventDataException("活動結束時間已過");
         }
     }
 
