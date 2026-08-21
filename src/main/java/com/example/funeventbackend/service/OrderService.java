@@ -1,6 +1,9 @@
 package com.example.funeventbackend.service;
 
 import com.example.funeventbackend.dto.order.CreateOrderRequest;
+import com.example.funeventbackend.dto.order.EventOrderItemResponse;
+import com.example.funeventbackend.dto.order.EventSalesByStatus;
+import com.example.funeventbackend.dto.order.EventSalesSummary;
 import com.example.funeventbackend.dto.order.OrderResponse;
 import com.example.funeventbackend.exception.InsufficientStockException;
 import com.example.funeventbackend.exception.InvalidStateTransitionException;
@@ -36,6 +39,8 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final TicketTypeRepository ticketTypeRepository;
+    // 主辦者看訂單前要驗擁有權。EventService 不依賴 OrderService，所以沒有循環
+    private final EventService eventService;
 
     /** 建單後多久未付款就自動取消。Boot 會把設定值的 15m 這種寫法解析成 Duration */
     @Value("${app.order.payment-timeout}")
@@ -122,6 +127,47 @@ public class OrderService {
         }
         log.info("逾時未付款，訂單已取消並回補庫存 orderId={}", orderId);
         return true;
+    }
+
+    /**
+     * 主辦者視角：某個活動的銷售明細。
+     *
+     * <p>⭐ 擁有權檢查在最前面。少了它，任何登入使用者帶著別人的 eventId
+     * 就能看光那場活動的銷售紀錄與買家姓名。
+     */
+    @Transactional(readOnly = true)
+    public Page<EventOrderItemResponse> findEventOrders(
+            User user, Long eventId, OrderStatusType status, Pageable pageable) {
+        eventService.getOwnedEntity(user, eventId);
+
+        Page<OrderItem> items = status == null
+                ? orderItemRepository.findByEventId(eventId, pageable)
+                : orderItemRepository.findByEventIdAndStatus(eventId, status, pageable);
+        return items.map(EventOrderItemResponse::from);
+    }
+
+    @Transactional(readOnly = true)
+    public EventSalesSummary getEventSalesSummary(User user, Long eventId) {
+        eventService.getOwnedEntity(user, eventId);
+
+        long paidQuantity = 0;
+        BigDecimal paidAmount = BigDecimal.ZERO;
+        long pendingQuantity = 0;
+
+        for (EventSalesByStatus row : orderItemRepository.sumByStatus(eventId)) {
+            switch (row.status()) {
+                case PAID -> {
+                    paidQuantity = row.quantity();
+                    paidAmount = row.amount();
+                }
+                case PENDING -> pendingQuantity = row.quantity();
+                // CANCELLED / REFUNDED 不列入銷售 —— 那些票已經還回庫存了
+                default -> {
+                }
+            }
+        }
+        // ⚠️ 沒有任何訂單時 sumByStatus 回空 List，這裡要給 0 而不是 null
+        return new EventSalesSummary(paidQuantity, paidAmount, pendingQuantity);
     }
 
     @Transactional(readOnly = true)

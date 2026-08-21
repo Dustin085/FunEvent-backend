@@ -2,11 +2,15 @@ package com.example.funeventbackend.controller;
 
 import com.example.funeventbackend.dto.event.OrganizerEventDetailResponse;
 import com.example.funeventbackend.dto.event.OrganizerEventSummaryResponse;
+import com.example.funeventbackend.dto.order.EventOrderItemResponse;
+import com.example.funeventbackend.dto.order.EventSalesSummary;
 import com.example.funeventbackend.dto.organizer.CreateOrganizerRequest;
 import com.example.funeventbackend.dto.organizer.OrganizerResponse;
 import com.example.funeventbackend.model.EventStatus;
+import com.example.funeventbackend.model.OrderStatusType;
 import com.example.funeventbackend.security.CustomUserDetails;
 import com.example.funeventbackend.service.EventService;
+import com.example.funeventbackend.service.OrderService;
 import com.example.funeventbackend.service.OrganizerService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +42,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrganizerController {
     private final OrganizerService organizerService;
     private final EventService eventService;
+    private final OrderService orderService;
 
     @PostMapping
     public ResponseEntity<OrganizerResponse> create(
@@ -89,5 +94,35 @@ public class OrganizerController {
     ) {
         return ResponseEntity.ok(
                 eventService.findMineById(principal.getUser(), eventId));
+    }
+
+    /**
+     * 某個活動的銷售明細。
+     *
+     * <p>⚠️ 回的是「訂單明細」不是「訂單」—— 一筆訂單可以跨活動下單，
+     * 用訂單當單位的話主辦者會看到別人活動的資料。
+     *
+     * <p>預設依建立時間遞減：後台想先看到最新的成交。
+     */
+    @GetMapping("/me/events/{eventId}/orders")
+    public ResponseEntity<PagedModel<EventOrderItemResponse>> listEventOrders(
+            @PathVariable Long eventId,
+            @RequestParam(required = false) OrderStatusType status,
+            @PageableDefault(size = 20, sort = {"order.createdAt", "id"},
+                    direction = Sort.Direction.DESC) Pageable pageable,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        return ResponseEntity.ok(new PagedModel<>(orderService.findEventOrders(
+                principal.getUser(), eventId, status, pageable)));
+    }
+
+    /** 銷售摘要：已售出張數／金額／待付款張數 */
+    @GetMapping("/me/events/{eventId}/sales-summary")
+    public ResponseEntity<EventSalesSummary> getSalesSummary(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        return ResponseEntity.ok(
+                orderService.getEventSalesSummary(principal.getUser(), eventId));
     }
 }
