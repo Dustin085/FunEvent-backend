@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 public interface CommentRepository extends JpaRepository<Comment, Long> {
 
@@ -19,6 +21,9 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
      */
     @EntityGraph(attributePaths = "user")
     Page<Comment> findByEventId(Long eventId, Pageable pageable);
+
+    /** 查「這個人對這個活動」有沒有評論過。用來支援前端的已評論過狀態 */
+    Optional<Comment> findByEventIdAndUserId(Long eventId, Long userId);
 
     /**
      * 平均分與則數，一次查完。

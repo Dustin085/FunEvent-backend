@@ -5,6 +5,7 @@ import com.example.funeventbackend.dto.comment.CreateCommentRequest;
 import com.example.funeventbackend.dto.comment.RatingSummary;
 import com.example.funeventbackend.exception.AlreadyCommentedException;
 import com.example.funeventbackend.exception.CommentNotAllowedException;
+import com.example.funeventbackend.exception.ResourceNotFoundException;
 import com.example.funeventbackend.model.Comment;
 import com.example.funeventbackend.model.Event;
 import com.example.funeventbackend.model.User;
@@ -22,6 +23,8 @@ import java.time.Instant;
 @Service
 @RequiredArgsConstructor
 public class CommentService {
+    private static final String COMMENT_NOT_FOUND_MESSAGE = "尚未評論過這個活動";
+
     private final CommentRepository commentRepository;
     private final OrderRepository orderRepository;
     private final EventService eventService;
@@ -65,5 +68,12 @@ public class CommentService {
     @Transactional(readOnly = true)
     public RatingSummary getRatingSummary(Long eventId) {
         return commentRepository.findRatingSummary(eventId);
+    }
+
+    @Transactional(readOnly = true)
+    public CommentResponse findMyComment(User user, Long eventId) {
+        return commentRepository.findByEventIdAndUserId(eventId, user.getId())
+                .map(CommentResponse::from)
+                .orElseThrow(() -> new ResourceNotFoundException(COMMENT_NOT_FOUND_MESSAGE));
     }
 }

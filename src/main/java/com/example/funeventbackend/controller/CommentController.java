@@ -48,4 +48,16 @@ public class CommentController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(commentService.create(principal.getUser(), eventId, request));
     }
+
+    /**
+     * 需要登入。查「我」對這個活動有沒有評論過 —— 前端用來決定要顯示
+     * 表單、已評論過的訊息，還是自己那則評論
+     */
+    @GetMapping("/me")
+    public ResponseEntity<CommentResponse> me(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        return ResponseEntity.ok(commentService.findMyComment(principal.getUser(), eventId));
+    }
 }
