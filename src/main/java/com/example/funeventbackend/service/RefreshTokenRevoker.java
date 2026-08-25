@@ -33,6 +33,10 @@ public class RefreshTokenRevoker {
     public void revokeFamily(UUID familyId) {
         List<RefreshToken> refreshTokenList = refreshTokenRepository.findByFamilyId(familyId);
         // managed entity，dirty check 會在交易提交時自動 UPDATE
-        refreshTokenList.forEach(token -> token.setUsed(true));
+        //
+        // ⚠️ 設 revoked 而不是 used：加入寬限期之後，用 used 表達「作廢」會有洞 ——
+        // 原始 token 的 usedAt 仍在窗口內，重放時會通過寬限期檢查、換到新票，
+        // 等於在一條已判定遭竊的 family 上繼續發票。兩件事必須分開記錄。
+        refreshTokenList.forEach(token -> token.setRevoked(true));
     }
 }

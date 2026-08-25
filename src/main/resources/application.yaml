@@ -56,6 +56,10 @@ app:
     expiration: 900000 # 15 分鐘
   refresh-token:
     expiration: 604800000 # 7 天
+    # 寬限期（reuse interval）：已使用的 RT 在這段時間內再次出現，
+    # 視為併發重送而非竊用。⚠️ 這段時間內真的被竊用會放行，所以要短。
+    # Boot 會把 30s 解析成 java.time.Duration（同 app.order.payment-timeout）
+    reuse-interval: 30s
   order:
     # 建單後多久未付款就自動取消並回補庫存。
     # Boot 會把 15m 這種寫法解析成 java.time.Duration
