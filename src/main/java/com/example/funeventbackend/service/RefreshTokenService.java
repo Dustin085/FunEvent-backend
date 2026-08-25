@@ -1,6 +1,5 @@
 package com.example.funeventbackend.service;
 
-import com.example.funeventbackend.exception.InvalidRefreshTokenException;
 import com.example.funeventbackend.model.RefreshToken;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.RefreshTokenRepository;
@@ -19,12 +18,10 @@ import java.util.UUID;
 
 @Service
 public class RefreshTokenService {
-    private static final String INVALID_TOKEN_MESSAGE = "驗證失敗";
     private final RefreshTokenRepository refreshTokenRepository;
     private final TokenGenerator tokenGenerator;
     private final long expiration;
     private final Duration reuseInterval;
-    private final RefreshTokenRevoker refreshTokenRevoker;
     private final RotatedTokenCache rotatedTokenCache;
 
     public RefreshTokenService(
@@ -32,15 +29,38 @@ public class RefreshTokenService {
             TokenGenerator tokenGenerator,
             @Value("${app.refresh-token.expiration}") long expiration,
             @Value("${app.refresh-token.reuse-interval:30s}") Duration reuseInterval,
-            RefreshTokenRevoker refreshTokenRevoker,
             RotatedTokenCache rotatedTokenCache
     ) {
         this.refreshTokenRepository = refreshTokenRepository;
         this.tokenGenerator = tokenGenerator;
         this.expiration = expiration;
         this.reuseInterval = reuseInterval;
-        this.refreshTokenRevoker = refreshTokenRevoker;
         this.rotatedTokenCache = rotatedTokenCache;
+    }
+
+    /**
+     * 換票的結果。
+     *
+     * <p>⭐ 為什麼用回傳值而不是丟例外：竊用偵測必須同時做兩件事 ——
+     * 「撤銷整條 family」（寫入）和「拒絕這次請求」。丟例外會讓交易回滾，
+     * 撤銷跟著不見。
+     *
+     * <p>早期是靠 {@code REQUIRES_NEW} 的獨立交易繞過去，直到 {@code rotate}
+     * 加上悲觀鎖之後 —— 那個獨立交易會去 UPDATE 外層正鎖著的同一列，
+     * <b>直接死鎖</b>（{@code RefreshTokenRotationTest} 抓到過）。
+     *
+     * <p>改成回傳結果之後，撤銷與拒絕都在同一個交易裡正常提交，
+     * 例外由沒有交易的 Controller 丟。沒有隱藏耦合，也不可能忘記加標註。
+     *
+     * <p>⚠️ {@code Rejected} 刻意不帶原因：對外一律是同一句「驗證失敗」，
+     * 區分「token 不存在／已過期／被撤銷」等於告訴攻擊者他猜到了哪一步。
+     */
+    public sealed interface RotationOutcome {
+        record Rotated(String rawToken, User user) implements RotationOutcome {
+        }
+
+        record Rejected() implements RotationOutcome {
+        }
     }
 
     @Transactional
@@ -60,13 +80,20 @@ public class RefreshTokenService {
         return rawToken;
     }
 
+    /**
+     * ⚠️ 這個方法<b>不丟例外</b>，一律回傳 {@link RotationOutcome}。
+     * 理由見那個介面的說明 —— 在這裡丟例外會回滾掉竊用偵測的撤銷。
+     */
     @Transactional
-    public RotationResult rotate(String rawToken) {
+    public RotationOutcome rotate(String rawToken) {
         String tokenHash = tokenGenerator.hashToken(rawToken);
         // ⚠️ 悲觀鎖：底下「讀 used → 判斷 → 寫 used」必須是原子的。
         // 沒有鎖的話兩個併發請求會同時讀到 used = false，各自輪替一次
-        RefreshToken refreshToken = refreshTokenRepository.findByTokenHashForUpdate(tokenHash)
-                .orElseThrow(() -> new InvalidRefreshTokenException(INVALID_TOKEN_MESSAGE));
+        Optional<RefreshToken> found = refreshTokenRepository.findByTokenHashForUpdate(tokenHash);
+        if (found.isEmpty()) {
+            return new RotationOutcome.Rejected();
+        }
+        RefreshToken refreshToken = found.get();
 
         Instant now = Instant.now();
 
@@ -74,7 +101,7 @@ public class RefreshTokenService {
         // ⚠️ 這條必須排在寬限期之前 —— 否則「family 已撤銷、但原始 token 還在
         // 寬限期內」會被放行，等於在一條已判定遭竊的 family 上繼續發票
         if (refreshToken.isRevoked()) {
-            throw new InvalidRefreshTokenException(INVALID_TOKEN_MESSAGE);
+            return new RotationOutcome.Rejected();
         }
 
         if (refreshToken.isUsed()) {
@@ -82,8 +109,8 @@ public class RefreshTokenService {
             // 都會讓同一張票再送一次。用時間差區分：
             // 瞬間的重送是併發，隔久了才當成攻擊
             if (!isWithinReuseInterval(refreshToken, now)) {
-                refreshTokenRevoker.revokeFamily(refreshToken.getFamilyId());
-                throw new InvalidRefreshTokenException(INVALID_TOKEN_MESSAGE);
+                revokeFamily(refreshToken.getFamilyId());
+                return new RotationOutcome.Rejected();
             }
 
             // ⭐ 寬限期內：把前一個請求換到的那張原封不動回傳，不產生第二張。
@@ -91,7 +118,7 @@ public class RefreshTokenService {
             // 而且不會留下一張沒有任何人持有的孤兒票
             Optional<String> alreadyRotated = rotatedTokenCache.get(tokenHash);
             if (alreadyRotated.isPresent()) {
-                return new RotationResult(alreadyRotated.get(), refreshToken.getUser());
+                return new RotationOutcome.Rotated(alreadyRotated.get(), refreshToken.getUser());
             }
             // 快取落空（重啟、換實例、逾時）→ 往下走，照常輪替一次。
             // ⚠️ 絕對不能改成拒絕：快取是最佳化，不是正確性的前提
@@ -99,7 +126,7 @@ public class RefreshTokenService {
 
         // 檢查 token 是否已過期
         if (now.isAfter(refreshToken.getExpiresAt())) {
-            throw new InvalidRefreshTokenException(INVALID_TOKEN_MESSAGE);
+            return new RotationOutcome.Rejected();
         }
 
         // ⚠️ usedAt 只在「第一次」被用掉時寫入。寬限期內的重放刻意不更新它 ——
@@ -131,7 +158,7 @@ public class RefreshTokenService {
 
         // 回傳結果
         User user = newRefreshtoken.getUser();
-        return new RotationResult(newRawToken, user);
+        return new RotationOutcome.Rotated(newRawToken, user);
     }
 
     /**
@@ -148,17 +175,30 @@ public class RefreshTokenService {
     }
 
     /**
+     * 撤銷整條 family（判定竊用時）。
+     *
+     * <p>⚠️ 預設的 {@code REQUIRED}，加入呼叫端的交易 —— <b>不能</b>改成
+     * {@code REQUIRES_NEW}：{@code rotate} 對這條 family 裡的某一列持有悲觀鎖，
+     * 獨立交易去 UPDATE 同一列會等到鎖逾時（{@code CannotAcquireLockException}）。
+     *
+     * <p>這曾經真的是 {@code REQUIRES_NEW}，因為當時 {@code rotate} 撤銷完會丟例外、
+     * 需要獨立提交才不被回滾。現在 {@code rotate} 改成回傳結果，那個需求消失了。
+     */
+    @Transactional
+    public void revokeFamily(UUID familyId) {
+        // managed entity，dirty check 會在交易提交時自動 UPDATE
+        refreshTokenRepository.findByFamilyId(familyId)
+                .forEach(token -> token.setRevoked(true));
+    }
+
+    /**
      * 撤銷這個使用者的全部 refresh token（改密碼時用）。
      *
-     * <p>⚠️ 這裡是預設的 {@code REQUIRED}，會加入呼叫端的交易 —— 和
-     * {@link RefreshTokenRevoker#revokeFamily} 的 {@code REQUIRES_NEW} 是相反的選擇。
-     * 那邊撤銷完要丟例外，必須先行提交才不會被回滾；這邊是正常流程，
-     * 密碼更新若回滾，撤銷也該一起回滾 ——
+     * <p>⚠️ 同樣是 {@code REQUIRED}：密碼更新若回滾，撤銷也該一起回滾 ——
      * 否則會變成「密碼沒改，但所有裝置都被登出」。
      */
     @Transactional
     public void revokeAllForUser(Long userId) {
-        // managed entity，dirty check 會在交易提交時自動 UPDATE
         refreshTokenRepository.findByUserId(userId)
                 .forEach(token -> token.setRevoked(true));
     }
@@ -172,9 +212,5 @@ public class RefreshTokenService {
             List<RefreshToken> family = refreshTokenRepository.findByFamilyId(token.getFamilyId());
             family.forEach(t -> t.setUsed(true));
         });
-    }
-
-
-    public record RotationResult(String rawToken, User user) {
     }
 }

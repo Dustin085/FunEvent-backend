@@ -22,6 +22,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
+
 @Service
 @RequiredArgsConstructor
 public class UserService {
@@ -79,20 +81,30 @@ public class UserService {
         );
     }
 
+    /**
+     * ⚠️ 回傳 {@code Optional} 而不是丟例外：empty 代表 refresh token 無效。
+     *
+     * <p>這個方法是 {@code @Transactional}，和 {@code rotate} 共用同一個實體交易 ——
+     * 在這裡丟例外會回滾掉 {@code rotate} 剛做的竊用撤銷。
+     * 例外必須由 Controller 丟（那一層沒有交易）。
+     */
     @Transactional
-    public AuthResponse refresh(String refreshToken) {
-        RefreshTokenService.RotationResult rotationResult = refreshTokenService.rotate(refreshToken);
-        User user = rotationResult.user();
-        String accessToken = jwtService.generateToken(user);
-
-        return new AuthResponse(
-                user.getId(),
-                user.getEmail(),
-                user.getName(),
-                user.getRole(),
-                accessToken,
-                rotationResult.rawToken()
-        );
+    public Optional<AuthResponse> refresh(String refreshToken) {
+        // 密封介面 → switch 有窮盡性檢查，之後多一種結果編譯器會逼你處理
+        return switch (refreshTokenService.rotate(refreshToken)) {
+            case RefreshTokenService.RotationOutcome.Rejected ignored -> Optional.empty();
+            case RefreshTokenService.RotationOutcome.Rotated rotated -> {
+                User user = rotated.user();
+                yield Optional.of(new AuthResponse(
+                        user.getId(),
+                        user.getEmail(),
+                        user.getName(),
+                        user.getRole(),
+                        jwtService.generateToken(user),
+                        rotated.rawToken()
+                ));
+            }
+        };
     }
 
     public UserResponse getCurrentUser(CustomUserDetails principal) {

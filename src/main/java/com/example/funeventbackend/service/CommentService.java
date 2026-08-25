@@ -6,6 +6,7 @@ import com.example.funeventbackend.dto.comment.MyCommentResponse;
 import com.example.funeventbackend.dto.comment.RatingSummary;
 import com.example.funeventbackend.exception.AlreadyCommentedException;
 import com.example.funeventbackend.exception.CommentNotAllowedException;
+import com.example.funeventbackend.exception.ResourceAccessDeniedException;
 import com.example.funeventbackend.exception.ResourceNotFoundException;
 import com.example.funeventbackend.model.Comment;
 import com.example.funeventbackend.model.Event;
@@ -24,7 +25,9 @@ import java.time.Instant;
 @Service
 @RequiredArgsConstructor
 public class CommentService {
-    private static final String COMMENT_NOT_FOUND_MESSAGE = "尚未評論過這個活動";
+    /** ⚠️ 這句是給「查自己對某活動的評論」用的，語意是「還沒評過」，不是「id 不存在」 */
+    private static final String NOT_COMMENTED_MESSAGE = "尚未評論過這個活動";
+    private static final String COMMENT_NOT_FOUND_MESSAGE = "找不到這則評論";
 
     private final CommentRepository commentRepository;
     private final OrderRepository orderRepository;
@@ -82,6 +85,31 @@ public class CommentService {
     public CommentResponse findMyComment(User user, Long eventId) {
         return commentRepository.findByEventIdAndUserId(eventId, user.getId())
                 .map(CommentResponse::from)
+                .orElseThrow(() -> new ResourceNotFoundException(NOT_COMMENTED_MESSAGE));
+    }
+
+    /**
+     * 刪除自己的評論。
+     *
+     * <p>⭐ 硬刪不軟刪：刪掉之後 UNIQUE(event_id, user_id) 就解開了，
+     * 使用者可以重新評一次 —— 這正是「改評論」的替代路徑（目前沒有修改端點）。
+     * 軟刪的話那個限制還在，等於刪了卻不能重寫。
+     *
+     * <p>⚠️ 評分平均是 {@code findRatingSummary} 每次即時算的，
+     * 沒有快取的聚合值需要失效，刪完自動就對了。
+     */
+    @Transactional
+    public void delete(User user, Long commentId) {
+        Comment comment = commentRepository.findById(commentId)
                 .orElseThrow(() -> new ResourceNotFoundException(COMMENT_NOT_FOUND_MESSAGE));
+
+        // ⚠️ 這裡用 403 而不是「一律 404」—— 和訂單、草稿活動是相反的選擇。
+        // 那些是私有資源，403 等於證實了這個 id 存在；
+        // 但評論是公開的，任何人本來就看得到它存在，隱瞞沒有意義
+        if (!comment.getUser().getId().equals(user.getId())) {
+            throw new ResourceAccessDeniedException("沒有刪除這則評論的權限");
+        }
+
+        commentRepository.delete(comment);
     }
 }
