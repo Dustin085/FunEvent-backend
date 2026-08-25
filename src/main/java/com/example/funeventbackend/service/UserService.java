@@ -4,8 +4,11 @@ import com.example.funeventbackend.dto.auth.AuthResponse;
 import com.example.funeventbackend.dto.auth.LoginRequest;
 import com.example.funeventbackend.dto.auth.RegisterRequest;
 import com.example.funeventbackend.dto.auth.UserResponse;
+import com.example.funeventbackend.dto.user.ChangePasswordRequest;
+import com.example.funeventbackend.dto.user.UpdateProfileRequest;
 import com.example.funeventbackend.exception.EmailAlreadyExistsException;
 import com.example.funeventbackend.exception.InvalidCredentialsException;
+import com.example.funeventbackend.exception.InvalidPasswordException;
 import com.example.funeventbackend.exception.OAuthOnlyAccountException;
 import com.example.funeventbackend.exception.ResourceNotFoundException;
 import com.example.funeventbackend.model.RoleType;
@@ -96,6 +99,60 @@ public class UserService {
         return convertToResponse(principal.getUser());
     }
 
+    @Transactional
+    public UserResponse updateProfile(User user, UpdateProfileRequest dto) {
+        // ⚠️ 一定要重新載入成 managed entity：principal 帶來的 User 是
+        // JWT filter 在請求早期載入的，到這裡已經 detached ——
+        // 直接對它 setName() 不會寫進資料庫，而且不會有任何錯誤訊息
+        User managed = getUserEntity(user.getId());
+        managed.setName(dto.name());
+        // managed entity，髒檢查會在提交時自動 UPDATE，不需要 save()
+        return convertToResponse(managed);
+    }
+
+    /**
+     * 改密碼，並撤銷這個使用者的所有 refresh token。
+     *
+     * <p>⭐ 撤銷是重點：改密碼通常意味著「我懷疑帳號被別人拿到了」，
+     * 舊裝置必須被登出，否則改了等於沒改。
+     *
+     * <p>⚠️ 但 access token 是無狀態 JWT，撤銷 refresh token <b>不會</b>讓它立刻失效 ——
+     * 其他裝置最多還能再用一個 AT 效期（15 分鐘）。要立即失效需要 token 黑名單，
+     * 那等於把無狀態改回有狀態。這是刻意接受的取捨。
+     *
+     * <p>回傳新的一組 token：不重發的話，使用者改完密碼會把自己也登出。
+     */
+    @Transactional
+    public AuthResponse changePassword(User user, ChangePasswordRequest dto) {
+        User managed = getUserEntity(user.getId());
+
+        // ⚠️ 第三方登入的帳號沒有密碼，「修改」不成立 ——
+        // 那是「設定密碼」，是另一支端點與另一套流程
+        if (!managed.hasPassword()) {
+            throw new OAuthOnlyAccountException("此帳號是使用第三方登入建立的，尚未設定密碼");
+        }
+        if (!passwordEncoder.matches(dto.currentPassword(), managed.getPasswordHash())) {
+            throw new InvalidPasswordException("目前的密碼不正確");
+        }
+
+        managed.setPasswordHash(passwordEncoder.encode(dto.newPassword()));
+
+        // ⚠️ 順序不能反：先撤銷既有的，再發新的 ——
+        // 反過來的話，新發的那一張會被自己撤銷掉
+        refreshTokenService.revokeAllForUser(managed.getId());
+
+        String accessToken = jwtService.generateToken(managed);
+        String refreshToken = refreshTokenService.issueNewFamily(managed);
+        return new AuthResponse(
+                managed.getId(),
+                managed.getEmail(),
+                managed.getName(),
+                managed.getRole(),
+                accessToken,
+                refreshToken
+        );
+    }
+
     /**
      * 取得特定 User Entity 僅供後端內部使用，回傳給前端應使用 DTO
      *
@@ -119,7 +176,8 @@ public class UserService {
                 user.getId(),
                 user.getEmail(),
                 user.getName(),
-                user.getRole()
+                user.getRole(),
+                user.hasPassword()
         );
     }
 }

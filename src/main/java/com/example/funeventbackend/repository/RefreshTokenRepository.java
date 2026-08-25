@@ -28,4 +28,7 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     // 取出整條 familyId 內的所有 tokens
     List<RefreshToken> findByFamilyId(UUID id);
+
+    // 這個使用者的所有 token（改密碼時要全部撤銷）
+    List<RefreshToken> findByUserId(Long userId);
 }

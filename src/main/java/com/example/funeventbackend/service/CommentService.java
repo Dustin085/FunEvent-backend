@@ -2,6 +2,7 @@ package com.example.funeventbackend.service;
 
 import com.example.funeventbackend.dto.comment.CommentResponse;
 import com.example.funeventbackend.dto.comment.CreateCommentRequest;
+import com.example.funeventbackend.dto.comment.MyCommentResponse;
 import com.example.funeventbackend.dto.comment.RatingSummary;
 import com.example.funeventbackend.exception.AlreadyCommentedException;
 import com.example.funeventbackend.exception.CommentNotAllowedException;
@@ -68,6 +69,13 @@ public class CommentService {
     @Transactional(readOnly = true)
     public RatingSummary getRatingSummary(Long eventId) {
         return commentRepository.findRatingSummary(eventId);
+    }
+
+    /** 會員中心的「我的評論」。不篩活動狀態 —— 那是自己的紀錄，活動下架了也還在 */
+    @Transactional(readOnly = true)
+    public Page<MyCommentResponse> findMine(User user, Pageable pageable) {
+        return commentRepository.findByUserId(user.getId(), pageable)
+                .map(MyCommentResponse::from);
     }
 
     @Transactional(readOnly = true)

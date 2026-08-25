@@ -147,6 +147,22 @@ public class RefreshTokenService {
         return usedAt != null && now.isBefore(usedAt.plus(reuseInterval));
     }
 
+    /**
+     * 撤銷這個使用者的全部 refresh token（改密碼時用）。
+     *
+     * <p>⚠️ 這裡是預設的 {@code REQUIRED}，會加入呼叫端的交易 —— 和
+     * {@link RefreshTokenRevoker#revokeFamily} 的 {@code REQUIRES_NEW} 是相反的選擇。
+     * 那邊撤銷完要丟例外，必須先行提交才不會被回滾；這邊是正常流程，
+     * 密碼更新若回滾，撤銷也該一起回滾 ——
+     * 否則會變成「密碼沒改，但所有裝置都被登出」。
+     */
+    @Transactional
+    public void revokeAllForUser(Long userId) {
+        // managed entity，dirty check 會在交易提交時自動 UPDATE
+        refreshTokenRepository.findByUserId(userId)
+                .forEach(token -> token.setRevoked(true));
+    }
+
     // 登出使用
     @Transactional
     public void logout(String rawToken) {

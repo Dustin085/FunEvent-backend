@@ -26,6 +26,16 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
     Optional<Comment> findByEventIdAndUserId(Long eventId, Long userId);
 
     /**
+     * 會員中心的「我的評論」。
+     *
+     * <p>⚠️ @EntityGraph 預抓 event —— 列表要顯示活動名稱，
+     * 否則每一則都會為了那個名稱多發一句 SQL。抓的是 @ManyToOne，
+     * JOIN 後列數不變，分頁的 LIMIT 仍然正確。
+     */
+    @EntityGraph(attributePaths = "event")
+    Page<Comment> findByUserId(Long userId, Pageable pageable);
+
+    /**
      * 平均分與則數，一次查完。
      *
      * <p>用 JPQL 的建構式查詢直接組成 DTO，而不是回 Object[] 讓呼叫端自己轉型 ——
