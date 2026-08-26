@@ -7,10 +7,12 @@ import com.example.funeventbackend.exception.InvalidStateTransitionException;
 import com.example.funeventbackend.exception.ResourceAccessDeniedException;
 import com.example.funeventbackend.exception.ResourceNotFoundException;
 import com.example.funeventbackend.model.Event;
+import com.example.funeventbackend.model.EventImage;
 import com.example.funeventbackend.model.EventStatus;
 import com.example.funeventbackend.model.Organizer;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.CommentRepository;
+import com.example.funeventbackend.repository.EventImageRepository;
 import com.example.funeventbackend.repository.EventRepository;
 import com.example.funeventbackend.repository.OrderRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,6 +47,8 @@ public class EventService {
     private final CommentRepository commentRepository;
     // 取消活動前要確認沒有人付過款
     private final OrderRepository orderRepository;
+    // 活動圖片的全量取代，見 replaceImages
+    private final EventImageRepository eventImageRepository;
 
     @Transactional
     public EventResponse create(User user, CreateEventRequest dto) {
@@ -67,7 +72,41 @@ public class EventService {
                 .build();
         // 存入資料庫
         Event savedEvent = eventRepository.save(newEvent);
+        replaceImages(savedEvent, dto.imageUrls());
         return EventResponse.from(savedEvent);
+    }
+
+    /**
+     * 全量取代活動圖片：先刪光再依序重建，清單的索引就是 sortOrder。
+     *
+     * <p>⚠️ 用「刪光重建」而不是算差異：前端送來的是完整清單，
+     * 而<b>順序本身就是資料</b>（第一張是封面）。算 diff 要分辨
+     * 「新增的」和「只是換了位置的」，更容易寫錯。最多 10 張，重建的成本可以忽略。
+     *
+     * <p>⚠️ {@code Event.images} 沒有 cascade 也沒有 orphanRemoval，
+     * 所以必須明確操作 repository，不能只動集合。
+     *
+     * <p>⚠️ 最後要把記憶體裡的集合也換掉 —— 不然 {@code EventResponse.from(event)}
+     * 讀到的還是舊的（create 的情況會是空的），回應裡看不到剛存進去的圖。
+     */
+    private void replaceImages(Event event, List<String> imageUrls) {
+        eventImageRepository.deleteByEventId(event.getId());
+
+        if (imageUrls == null || imageUrls.isEmpty()) {
+            event.setImages(new ArrayList<>());
+            return;
+        }
+
+        List<EventImage> images = new ArrayList<>();
+        for (int index = 0; index < imageUrls.size(); index++) {
+            images.add(EventImage.builder()
+                    .event(event)
+                    .imageUrl(imageUrls.get(index))
+                    .sortOrder(index)
+                    .build());
+        }
+        eventImageRepository.saveAll(images);
+        event.setImages(images);
     }
 
     @Transactional(readOnly = true)
@@ -220,6 +259,8 @@ public class EventService {
         event.setDistrict(dto.district());
         event.setLocationName(dto.locationName());
         event.setAddress(dto.address());
+        // ⚠️ 圖片是全量取代：送什麼就是什麼，沒送的會被刪掉
+        replaceImages(event, dto.imageUrls());
         // 不需要 save()：event 是交易內撈出的 managed entity，
         // 提交時髒檢查會自動發出 UPDATE。create 才需要 save（新物件要靠它拿到 id）
         return EventResponse.from(event);

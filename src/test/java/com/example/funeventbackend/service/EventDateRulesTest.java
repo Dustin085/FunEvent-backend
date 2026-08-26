@@ -27,6 +27,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -92,8 +93,9 @@ class EventDateRulesTest {
     }
 
     private UpdateEventRequest updateRequest(String name, Instant startAt, Instant endAt) {
+        // 這個檔案測的是日期規則，圖片一律空清單
         return new UpdateEventRequest(name, "修正後的介紹", startAt, endAt,
-                Category.MUSIC_GROOVE, City.TAIPEI, "大安區", "場地", "地址");
+                Category.MUSIC_GROOVE, City.TAIPEI, "大安區", "場地", "地址", List.of());
     }
 
     @Test
@@ -166,7 +168,7 @@ class EventDateRulesTest {
                 "早就結束的活動", "介紹",
                 Instant.now().minus(10, ChronoUnit.DAYS),
                 Instant.now().minus(9, ChronoUnit.DAYS),
-                Category.MUSIC_GROOVE, City.TAIPEI, "大安區", "場地", "地址");
+                Category.MUSIC_GROOVE, City.TAIPEI, "大安區", "場地", "地址", List.of());
 
         assertThrows(InvalidEventDataException.class,
                 () -> eventService.create(owner, request));
@@ -179,7 +181,7 @@ class EventDateRulesTest {
                 "進行中的展覽", "介紹",
                 Instant.now().minus(1, ChronoUnit.DAYS),
                 Instant.now().plus(30, ChronoUnit.DAYS),
-                Category.MUSIC_GROOVE, City.TAIPEI, "大安區", "場地", "地址");
+                Category.MUSIC_GROOVE, City.TAIPEI, "大安區", "場地", "地址", List.of());
 
         EventResponse created = eventService.create(owner, request);
 
