@@ -129,7 +129,9 @@ public class SecurityConfig {
 
                         // 順序不能反：requestMatchers 照順序比對、第一個命中的生效，
                         // 這條較具體的規則必須排在下面那條 /api/events/** permitAll 之前
-                        .requestMatchers(HttpMethod.GET, "/api/events/*/comments/me").authenticated()
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/events/*/comments/me",
+                                "/api/events/*/comments/eligibility").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/categories").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/cities").permitAll()

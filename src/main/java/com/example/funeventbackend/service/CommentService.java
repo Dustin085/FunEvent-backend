@@ -1,5 +1,6 @@
 package com.example.funeventbackend.service;
 
+import com.example.funeventbackend.dto.comment.CommentEligibilityResponse;
 import com.example.funeventbackend.dto.comment.CommentResponse;
 import com.example.funeventbackend.dto.comment.CreateCommentRequest;
 import com.example.funeventbackend.dto.comment.MyCommentResponse;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -38,15 +40,17 @@ public class CommentService {
         // getPublishedEntity 對未發布的活動回 404（不洩漏存在性）
         Event event = eventService.getPublishedEntity(eventId);
 
-        // ⚠️ 用 startAt 不是 endAt：多日活動的 endAt 可能是一個月後，
-        // 要等到那時才能評太久。「已經去過了」用開始時間判斷比較貼近實際
-        if (Instant.now().isBefore(event.getStartAt())) {
-            throw new CommentNotAllowedException("活動開始後才能評論");
-        }
-        // ⭐ 這條規則是「評分有意義」的前提 —— 沒買過的人不能評
-        if (!orderRepository.hasPaidOrderForEvent(user.getId(), eventId)) {
-            throw new CommentNotAllowedException("只有購票並完成付款的參加者可以評論");
-        }
+        // ⭐ 資格判斷跟 checkEligibility 共用同一段 —— 各寫一次的話，
+        // 後端內部就會有兩份會走鐘的規則，比前端複製一份更糟
+        //（兩份都在後端、看起來都很權威）
+        findBlockingReason(user, event).ifPresent(reason -> {
+            throw switch (reason) {
+                case NOT_STARTED -> new CommentNotAllowedException("活動開始後才能評論");
+                case NOT_ATTENDED ->
+                        new CommentNotAllowedException("只有購票並完成付款的參加者可以評論");
+                case ALREADY_COMMENTED -> new AlreadyCommentedException("你已經評論過這個活動了");
+            };
+        });
 
         try {
             Comment saved = commentRepository.save(Comment.builder()
@@ -58,10 +62,52 @@ public class CommentService {
             return CommentResponse.from(saved);
         } catch (DataIntegrityViolationException e) {
             // UNIQUE(event_id, user_id) 擋下的重複送出（或兩個分頁的併發）。
-            // ⚠️ 這裡捕捉之後直接往外拋，不重試 —— 和 OAuth 第一次登入不同，
+            //
+            // ⚠️ 這段**絕對不能**因為上面已經先查過 ALREADY_COMMENTED 就拿掉：
+            // 那個查詢只是為了給出漂亮的錯誤，真正擋住併發的是資料庫的唯一約束。
+            // 兩個分頁同時送出時，兩邊的查詢都會回「還沒評過」，
+            // 少了這個 catch 其中一個就會爆成 500。
+            //
+            // ⚠️ 捕捉之後直接往外拋，不重試 —— 和 OAuth 第一次登入不同，
             // 那裡要「重查對方剛建好的資料」，這裡本來就該讓整個交易回滾
             throw new AlreadyCommentedException("你已經評論過這個活動了");
         }
+    }
+
+    /**
+     * 「我現在能不能評論這個活動」。前端用它決定要顯示表單還是說明。
+     *
+     * <p>⚠️ 這支<b>不丟例外</b>：「不能評論」是正常的查詢結果，不是錯誤。
+     */
+    @Transactional(readOnly = true)
+    public CommentEligibilityResponse checkEligibility(User user, Long eventId) {
+        Event event = eventService.getPublishedEntity(eventId);
+        return findBlockingReason(user, event)
+                .map(CommentEligibilityResponse::blockedBy)
+                .orElseGet(CommentEligibilityResponse::allowed);
+    }
+
+    /**
+     * 不能評論的原因，空的代表可以。{@code create} 與 {@code checkEligibility} 共用。
+     *
+     * <p>⚠️ 用 startAt 不是 endAt：多日活動的 endAt 可能是一個月後，
+     * 要等到那時才能評太久。「已經去過了」用開始時間判斷比較貼近實際。
+     *
+     * <p>⭐ 「只有買過票的人能評」是整個評分有意義的前提 ——
+     * 任何人都能評的話，分數只反映誰有空刷，不再反映參加者的體驗。
+     */
+    private Optional<CommentEligibilityResponse.Reason> findBlockingReason(
+            User user, Event event) {
+        if (Instant.now().isBefore(event.getStartAt())) {
+            return Optional.of(CommentEligibilityResponse.Reason.NOT_STARTED);
+        }
+        if (!orderRepository.hasPaidOrderForEvent(user.getId(), event.getId())) {
+            return Optional.of(CommentEligibilityResponse.Reason.NOT_ATTENDED);
+        }
+        if (commentRepository.findByEventIdAndUserId(event.getId(), user.getId()).isPresent()) {
+            return Optional.of(CommentEligibilityResponse.Reason.ALREADY_COMMENTED);
+        }
+        return Optional.empty();
     }
 
     @Transactional(readOnly = true)

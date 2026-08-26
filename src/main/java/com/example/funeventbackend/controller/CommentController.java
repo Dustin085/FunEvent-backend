@@ -1,5 +1,6 @@
 package com.example.funeventbackend.controller;
 
+import com.example.funeventbackend.dto.comment.CommentEligibilityResponse;
 import com.example.funeventbackend.dto.comment.CommentResponse;
 import com.example.funeventbackend.dto.comment.CreateCommentRequest;
 import com.example.funeventbackend.security.CustomUserDetails;
@@ -50,8 +51,26 @@ public class CommentController {
     }
 
     /**
-     * 需要登入。查「我」對這個活動有沒有評論過 —— 前端用來決定要顯示
-     * 表單、已評論過的訊息，還是自己那則評論
+     * 需要登入。「我現在能不能評論這個活動」。
+     *
+     * <p>⭐ 前端靠這支決定要顯示表單還是說明 —— 資格規則仍然只寫在後端一處，
+     * 前端不是自己算而是來問。沒買票的人看到一張填完才被 403 打回票的表單，
+     * 是很糟的體驗。
+     */
+    @GetMapping("/eligibility")
+    public ResponseEntity<CommentEligibilityResponse> eligibility(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        return ResponseEntity.ok(
+                commentService.checkEligibility(principal.getUser(), eventId));
+    }
+
+    /**
+     * 需要登入。查「我」對這個活動的評論。
+     *
+     * <p>⚠️ 目前前端沒有呼叫這支 —— 判斷「評過了沒」已經改用上面的 eligibility。
+     * 留著是因為它是之後做「編輯評論」時載入原內容的天然端點。
      */
     @GetMapping("/me")
     public ResponseEntity<CommentResponse> me(

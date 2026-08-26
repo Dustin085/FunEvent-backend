@@ -1,5 +1,6 @@
 package com.example.funeventbackend.service;
 
+import com.example.funeventbackend.dto.comment.CommentEligibilityResponse;
 import com.example.funeventbackend.dto.comment.CreateCommentRequest;
 import com.example.funeventbackend.dto.comment.RatingSummary;
 import com.example.funeventbackend.exception.AlreadyCommentedException;
@@ -35,8 +36,10 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 評論的資格規則與評分聚合。
@@ -203,6 +206,67 @@ class CommentServiceTest {
         RatingSummary summary = commentService.getRatingSummary(startedEvent.getId());
         assertEquals(4.0, summary.average(), 0.0001);
         assertEquals(3, summary.count());
+    }
+
+    // ── 資格查詢 ─────────────────────────────────────────
+    // ⭐ 這一組跟 create 共用 findBlockingReason，所以它們同時是
+    // 「eligibility 回對答案」和「create 的規則沒被改壞」的保護網
+
+    @Test
+    @DisplayName("買過票且活動已開始：可以評論")
+    void eligibilityAllowsPaidAttendee() {
+        giveOrder(buyer, startedTicket, OrderStatusType.PAID);
+
+        var eligibility = commentService.checkEligibility(buyer, startedEvent.getId());
+
+        assertTrue(eligibility.canComment());
+        assertNull(eligibility.reason());
+    }
+
+    @Test
+    @DisplayName("⭐ 沒買票的人：回 NOT_ATTENDED，而不是讓他看到表單")
+    void eligibilityRejectsStranger() {
+        var eligibility = commentService.checkEligibility(stranger, startedEvent.getId());
+
+        // ⚠️ 這條是這支端點存在的理由：沒有它，前端會顯示一張
+        // 填完按下送出才被 403 打回票的表單
+        assertFalse(eligibility.canComment());
+        assertEquals(CommentEligibilityResponse.Reason.NOT_ATTENDED, eligibility.reason());
+    }
+
+    @Test
+    @DisplayName("訂單還沒付款也算沒買票")
+    void eligibilityRejectsPendingOrder() {
+        giveOrder(buyer, startedTicket, OrderStatusType.PENDING);
+
+        var eligibility = commentService.checkEligibility(buyer, startedEvent.getId());
+
+        assertEquals(CommentEligibilityResponse.Reason.NOT_ATTENDED, eligibility.reason());
+    }
+
+    @Test
+    @DisplayName("活動還沒開始：回 NOT_STARTED")
+    void eligibilityRejectsBeforeStart() {
+        TicketType futureTicket = ticketTypeRepository.findAll().stream()
+                .filter(t -> t.getEvent().getId().equals(futureEvent.getId()))
+                .findFirst().orElseThrow();
+        giveOrder(buyer, futureTicket, OrderStatusType.PAID);
+
+        var eligibility = commentService.checkEligibility(buyer, futureEvent.getId());
+
+        // ⚠️ 順序有意義：買了票但活動還沒開始，要回 NOT_STARTED 不是 NOT_ATTENDED
+        assertEquals(CommentEligibilityResponse.Reason.NOT_STARTED, eligibility.reason());
+    }
+
+    @Test
+    @DisplayName("已經評過：回 ALREADY_COMMENTED")
+    void eligibilityRejectsAfterCommenting() {
+        giveOrder(buyer, startedTicket, OrderStatusType.PAID);
+        commentService.create(buyer, startedEvent.getId(), request(5));
+
+        var eligibility = commentService.checkEligibility(buyer, startedEvent.getId());
+
+        assertEquals(CommentEligibilityResponse.Reason.ALREADY_COMMENTED, eligibility.reason());
     }
 
     @Test
