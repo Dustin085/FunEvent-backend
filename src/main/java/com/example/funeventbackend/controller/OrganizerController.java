@@ -6,6 +6,7 @@ import com.example.funeventbackend.dto.order.EventOrderItemResponse;
 import com.example.funeventbackend.dto.order.EventSalesSummary;
 import com.example.funeventbackend.dto.organizer.CreateOrganizerRequest;
 import com.example.funeventbackend.dto.organizer.OrganizerResponse;
+import com.example.funeventbackend.dto.organizer.UpdateOrganizerRequest;
 import com.example.funeventbackend.model.EventStatus;
 import com.example.funeventbackend.model.OrderStatusType;
 import com.example.funeventbackend.security.CustomUserDetails;
@@ -22,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -66,6 +68,20 @@ public class OrganizerController {
             @AuthenticationPrincipal CustomUserDetails principal
     ) {
         return ResponseEntity.ok(organizerService.getMine(principal.getUser()));
+    }
+
+    /**
+     * 修改主辦單位的名稱與介紹。
+     *
+     * <p>⚠️ 不是主辦者時同樣回 403 —— 沒有身分就沒有東西可以改。
+     */
+    @PatchMapping("/me")
+    public ResponseEntity<OrganizerResponse> updateMine(
+            @Valid @RequestBody UpdateOrganizerRequest request,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        return ResponseEntity.ok(
+                organizerService.update(principal.getUser(), request));
     }
 
     /**

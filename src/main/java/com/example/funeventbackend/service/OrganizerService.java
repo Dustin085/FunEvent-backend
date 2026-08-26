@@ -1,6 +1,7 @@
 package com.example.funeventbackend.service;
 
 import com.example.funeventbackend.dto.organizer.CreateOrganizerRequest;
+import com.example.funeventbackend.dto.organizer.UpdateOrganizerRequest;
 import com.example.funeventbackend.exception.NotOrganizerException;
 import com.example.funeventbackend.exception.OrganizerAlreadyExistsException;
 import com.example.funeventbackend.model.Organizer;
@@ -32,6 +33,25 @@ public class OrganizerService {
         Organizer savedOrganizer = organizerRepository.save(newOrganizer);
 
         return OrganizerResponse.from(savedOrganizer);
+    }
+
+    /**
+     * 修改主辦單位的名稱與介紹。
+     *
+     * <p>⚠️ 這裡不需要像 {@code UserService.updateProfile} 那樣重新載入 ——
+     * {@code getEntityByUser} 查出來的就是這個交易裡的 managed entity，
+     * 髒檢查會在提交時自動 UPDATE。那邊之所以要重載，是因為它拿到的是
+     * {@code principal.getUser()}，那是 JWT filter 在請求早期載入的 detached 物件。
+     *
+     * <p>⭐ 單位介紹會顯示在每一個活動頁上，所以這支不是可有可無的 ——
+     * 沒有它，打錯一個字就永遠留在站上。
+     */
+    @Transactional
+    public OrganizerResponse update(User user, UpdateOrganizerRequest dto) {
+        Organizer organizer = getEntityByUser(user);
+        organizer.setName(dto.name());
+        organizer.setIntroduction(dto.introduction());
+        return OrganizerResponse.from(organizer);
     }
 
     /**
