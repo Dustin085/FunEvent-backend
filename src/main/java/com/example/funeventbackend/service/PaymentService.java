@@ -35,6 +35,8 @@ public class PaymentService {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway;
+    // 付款成功後把訂單明細展開成票券
+    private final TicketService ticketService;
 
     @Transactional
     public PaymentInitiationResponse initiate(User user, Long orderId) {
@@ -107,6 +109,10 @@ public class PaymentService {
             // 這是真實世界一定會發生的情況，必須人工介入退款。
             log.error("付款成功但訂單狀態已非 PENDING，需人工退款 orderId={} merchantTradeNo={}",
                     payment.getOrder().getId(), result.merchantTradeNo());
+        } else {
+            // ⭐ 只有「真的從 PENDING 轉成 PAID 的那一次」會走到這裡 ——
+            // 重複的回呼在上面就被 markPaid 的條件擋掉了，不會重複發票
+            ticketService.issueForOrder(payment.getOrder().getId());
         }
         return PaymentCallbackOutcome.APPLIED;
     }

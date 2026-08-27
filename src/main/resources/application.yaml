@@ -54,6 +54,12 @@ app:
   access-token:
     secret: ${JWT_SECRET:dev-only-secret-dsafjdfjieawjfeaidjofasiegnoawjio}
     expiration: 900000 # 15 分鐘
+  ticket:
+    # 票券 QR 的簽章金鑰。
+    # ⚠️ 絕對不能跟 access-token.secret 共用 —— 不同用途的簽章共用金鑰時，
+    # 其中一邊的漏洞會擴散到另一邊。
+    # ⚠️ 換掉這個值會讓所有已經發出去的 QR 立刻失效。
+    secret: ${TICKET_SECRET:dev-only-ticket-secret-do-not-use-in-production}
   refresh-token:
     expiration: 604800000 # 7 天
     # 寬限期（reuse interval）：已使用的 RT 在這段時間內再次出現，
