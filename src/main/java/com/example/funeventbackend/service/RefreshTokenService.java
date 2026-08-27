@@ -38,31 +38,6 @@ public class RefreshTokenService {
         this.rotatedTokenCache = rotatedTokenCache;
     }
 
-    /**
-     * 換票的結果。
-     *
-     * <p>⭐ 為什麼用回傳值而不是丟例外：竊用偵測必須同時做兩件事 ——
-     * 「撤銷整條 family」（寫入）和「拒絕這次請求」。丟例外會讓交易回滾，
-     * 撤銷跟著不見。
-     *
-     * <p>早期是靠 {@code REQUIRES_NEW} 的獨立交易繞過去，直到 {@code rotate}
-     * 加上悲觀鎖之後 —— 那個獨立交易會去 UPDATE 外層正鎖著的同一列，
-     * <b>直接死鎖</b>（{@code RefreshTokenRotationTest} 抓到過）。
-     *
-     * <p>改成回傳結果之後，撤銷與拒絕都在同一個交易裡正常提交，
-     * 例外由沒有交易的 Controller 丟。沒有隱藏耦合，也不可能忘記加標註。
-     *
-     * <p>⚠️ {@code Rejected} 刻意不帶原因：對外一律是同一句「驗證失敗」，
-     * 區分「token 不存在／已過期／被撤銷」等於告訴攻擊者他猜到了哪一步。
-     */
-    public sealed interface RotationOutcome {
-        record Rotated(String rawToken, User user) implements RotationOutcome {
-        }
-
-        record Rejected() implements RotationOutcome {
-        }
-    }
-
     @Transactional
     public String issueNewFamily(User user) {
         // 新建 RefreshToken
@@ -166,8 +141,11 @@ public class RefreshTokenService {
      * 視為正常的併發重送而不是竊用。
      *
      * <p>⚠️ usedAt 為 null 代表「被標記已使用，但不知道是什麼時候」——
-     * 登出時整條 family 被標記，以及這個欄位存在之前的舊資料都是這樣。
+     * 正常流程不會產生這種資料（{@code rotate} 設 used 時一定同時設 usedAt），
+     * 只有這個欄位存在之前的舊資料會是這樣。
      * 一律當成窗口外（也就是拒絕）—— 安全的預設是拒絕，不是放行。
+     *
+     * <p>（登出走的是 revoked，而 revoked 在更前面就攔下來了，走不到這裡。）
      */
     private boolean isWithinReuseInterval(RefreshToken token, Instant now) {
         Instant usedAt = token.getUsedAt();
@@ -210,7 +188,7 @@ public class RefreshTokenService {
         // 查不到就當作已經登出了，不丟例外 —— 登出應該是等冪的
         refreshTokenRepository.findByTokenHash(tokenHash).ifPresent(token -> {
             List<RefreshToken> family = refreshTokenRepository.findByFamilyId(token.getFamilyId());
-            family.forEach(t -> t.setUsed(true));
+            family.forEach(t -> t.setRevoked(true));
         });
     }
 }

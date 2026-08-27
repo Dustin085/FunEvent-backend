@@ -117,7 +117,7 @@ class RefreshTokenRotationTest {
         old.setUsedAt(Instant.now().minus(1, ChronoUnit.HOURS));
         refreshTokenRepository.save(old);
 
-        assertInstanceOf(RefreshTokenService.RotationOutcome.Rejected.class,
+        assertInstanceOf(RotationOutcome.Rejected.class,
                 refreshTokenService.rotate(first));
 
         // ⭐ 撤銷必須真的落到資料庫。
@@ -142,15 +142,36 @@ class RefreshTokenRotationTest {
         // ⚠️ first 的 usedAt 還在寬限期內。revoked 的檢查若排在寬限期之後，
         // 這裡會通過寬限期、從快取拿到 second 回傳 ——
         // 等於在一條已判定遭竊的 family 上繼續發票，撤銷白做
-        assertInstanceOf(RefreshTokenService.RotationOutcome.Rejected.class,
+        assertInstanceOf(RotationOutcome.Rejected.class,
                 refreshTokenService.rotate(first));
-        assertInstanceOf(RefreshTokenService.RotationOutcome.Rejected.class,
+        assertInstanceOf(RotationOutcome.Rejected.class,
                 refreshTokenService.rotate(second));
     }
 
+    @Test
+    @DisplayName("⭐ 登出之後，連寬限期內的舊票也立刻失效")
+    void logoutRevokesFamilyImmediately() {
+        String first = refreshTokenService.issueNewFamily(user);
+        // 換一次票 —— first 現在是 used，而且 usedAt 就是剛剛，還在寬限期內
+        String second = rotated(first).rawToken();
+
+        refreshTokenService.logout(second);
+
+        // ⚠️ 這條守的是「logout 要設 revoked 而不是 used」。
+        // 只設 used 的話，first 會走進寬限期、從快取拿到 second 回傳 ——
+        // 登出後的 30 秒內，一張剛用過的舊票還能換到有效的新票
+        assertInstanceOf(RotationOutcome.Rejected.class,
+                refreshTokenService.rotate(first));
+        assertInstanceOf(RotationOutcome.Rejected.class,
+                refreshTokenService.rotate(second));
+
+        assertTrue(familyOf(first).stream().allMatch(RefreshToken::isRevoked),
+                "登出要撤銷整條 family");
+    }
+
     /** 期待換票成功，順便斷言型別 —— 讓每個案例不必自己 cast */
-    private RefreshTokenService.RotationOutcome.Rotated rotated(String rawToken) {
-        return assertInstanceOf(RefreshTokenService.RotationOutcome.Rotated.class,
+    private RotationOutcome.Rotated rotated(String rawToken) {
+        return assertInstanceOf(RotationOutcome.Rotated.class,
                 refreshTokenService.rotate(rawToken), "這一步應該要換票成功");
     }
 

@@ -58,7 +58,7 @@ public class AuthController {
      * ⚠️ 例外要在這裡丟，<b>不能</b>往 Service 裡搬：Controller 這一層沒有交易，
      * 到得了這裡就代表 rotate 的竊用撤銷已經提交了。
      * 搬進 UserService.refresh（它是 @Transactional）會讓那個撤銷被回滾。
-     * 見 RefreshTokenService.RotationOutcome 的說明。
+     * 見 RotationOutcome 的說明。
      */
     @PostMapping("/refresh")
     public ResponseEntity<AuthResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {

@@ -108,9 +108,9 @@ class AccountServiceTest {
 
         // ⚠️ 沒有這段的話「改密碼」只是換了一個字串 ——
         // 盜用者手上的舊 token 照樣能一直換新的，改了等於沒改
-        assertInstanceOf(RefreshTokenService.RotationOutcome.Rejected.class,
+        assertInstanceOf(RotationOutcome.Rejected.class,
                 refreshTokenService.rotate(phone));
-        assertInstanceOf(RefreshTokenService.RotationOutcome.Rejected.class,
+        assertInstanceOf(RotationOutcome.Rejected.class,
                 refreshTokenService.rotate(laptop));
     }
 
@@ -123,7 +123,7 @@ class AccountServiceTest {
                 user, changeRequest(OLD_PASSWORD, NEW_PASSWORD));
 
         // 撤銷是先做的，新票是之後才發的 —— 順序反過來的話新票會被自己撤銷掉
-        assertInstanceOf(RefreshTokenService.RotationOutcome.Rotated.class,
+        assertInstanceOf(RotationOutcome.Rotated.class,
                 refreshTokenService.rotate(response.refreshToken()));
         assertFalse(response.accessToken().isBlank());
     }

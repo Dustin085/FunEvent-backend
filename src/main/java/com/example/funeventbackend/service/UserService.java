@@ -92,8 +92,8 @@ public class UserService {
     public Optional<AuthResponse> refresh(String refreshToken) {
         // 密封介面 → switch 有窮盡性檢查，之後多一種結果編譯器會逼你處理
         return switch (refreshTokenService.rotate(refreshToken)) {
-            case RefreshTokenService.RotationOutcome.Rejected ignored -> Optional.empty();
-            case RefreshTokenService.RotationOutcome.Rotated rotated -> {
+            case RotationOutcome.Rejected ignored -> Optional.empty();
+            case RotationOutcome.Rotated rotated -> {
                 User user = rotated.user();
                 yield Optional.of(new AuthResponse(
                         user.getId(),
