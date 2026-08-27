@@ -49,6 +49,8 @@ public class EventService {
     private final OrderRepository orderRepository;
     // 活動圖片的全量取代，見 replaceImages
     private final EventImageRepository eventImageRepository;
+    // 卡片用的摘要（含票種聚合），跟 FavoriteService 共用
+    private final EventSummaryAssembler eventSummaryAssembler;
 
     @Transactional
     public EventResponse create(User user, CreateEventRequest dto) {
@@ -123,31 +125,10 @@ public class EventService {
                 .filter(Objects::nonNull)
                 .toList();
 
-        Page<Event> events = eventRepository.findAll(Specification.allOf(specs), pageable);
-        Map<Long, EventTicketAggregate> aggregates = loadTicketAggregates(events.getContent());
-        return events.map(event ->
-                EventSummaryResponse.from(event, aggregates.get(event.getId())));
-    }
-
-    /**
-     * 這一頁所有活動的票種聚合（最低價、剩餘張數），一句查完。
-     *
-     * <p>⚠️ 絕對不能改成「每個活動各查一次」—— 那就是 1+N，
-     * 而首頁與搜尋頁是全站流量最高的端點。
-     * {@code EventQuerySqlCountTest} 的句數斷言就是這件事的保護網。
-     *
-     * <p>⚠️ 沒有把「販售期間內」放進條件：那會讓聚合結果隨時間變動，
-     * 而卡片上的「NT$ X 起」講的是這個活動的票價，不是「此刻能不能買」。
-     * 能不能買是詳情頁的事（見前端的 resolveUnavailableReason）。
-     */
-    private Map<Long, EventTicketAggregate> loadTicketAggregates(List<Event> events) {
-        if (events.isEmpty()) {
-            // ⚠️ 空清單要提早返回 —— IN () 在多數資料庫是無效語法
-            return Map.of();
-        }
-        List<Long> eventIds = events.stream().map(Event::getId).toList();
-        return ticketTypeRepository.findAggregatesByEventIds(eventIds).stream()
-                .collect(Collectors.toMap(EventTicketAggregate::eventId, aggregate -> aggregate));
+        // 票種聚合交給 EventSummaryAssembler —— 我的收藏那支也用同一個，
+        // 「一句查完整頁」的規則只寫在一處
+        return eventSummaryAssembler.assemble(
+                eventRepository.findAll(Specification.allOf(specs), pageable));
     }
 
     @Transactional(readOnly = true)

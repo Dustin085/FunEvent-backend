@@ -132,6 +132,11 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/events/*/comments/me",
                                 "/api/events/*/comments/eligibility").authenticated()
+                        // ⚠️ GET 這條不能少 —— 沒有它會被下面的 /api/events/** permitAll
+                        // 蓋掉，未登入打進來 principal 是 null，controller 直接 NPE
+                        .requestMatchers(HttpMethod.GET, "/api/events/*/favorite").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/events/*/favorite").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/events/*/favorite").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/events", "/api/events/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/categories").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/cities").permitAll()
