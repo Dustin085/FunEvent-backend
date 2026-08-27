@@ -7,12 +7,15 @@ import com.example.funeventbackend.dto.order.EventSalesSummary;
 import com.example.funeventbackend.dto.organizer.CreateOrganizerRequest;
 import com.example.funeventbackend.dto.organizer.OrganizerResponse;
 import com.example.funeventbackend.dto.organizer.UpdateOrganizerRequest;
+import com.example.funeventbackend.dto.ticket.CheckInRequest;
+import com.example.funeventbackend.dto.ticket.CheckInResponse;
 import com.example.funeventbackend.model.EventStatus;
 import com.example.funeventbackend.model.OrderStatusType;
 import com.example.funeventbackend.security.CustomUserDetails;
 import com.example.funeventbackend.service.EventService;
 import com.example.funeventbackend.service.OrderService;
 import com.example.funeventbackend.service.OrganizerService;
+import com.example.funeventbackend.service.TicketService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -45,6 +48,7 @@ public class OrganizerController {
     private final OrganizerService organizerService;
     private final EventService eventService;
     private final OrderService orderService;
+    private final TicketService ticketService;
 
     @PostMapping
     public ResponseEntity<OrganizerResponse> create(
@@ -75,6 +79,38 @@ public class OrganizerController {
      *
      * <p>⚠️ 不是主辦者時同樣回 403 —— 沒有身分就沒有東西可以改。
      */
+    /**
+     * 核銷一張票（入場掃描）。
+     *
+     * <p>⚠️ 回傳 200 + 結果物件，即使是「已使用」或「無效」——
+     * 對現場掃票的人來說那些不是錯誤，是需要看清楚的結果。
+     * 見 {@link CheckInResponse}。
+     */
+    /**
+     * 預覽掃到的票，<b>不改狀態</b>。前端用它顯示「確認核銷王小明的一般票嗎」。
+     *
+     * <p>⚠️ 這只是預測 —— 真正的把關在 check-in 的條件式 UPDATE。
+     */
+    @PostMapping("/me/events/{eventId}/check-in/preview")
+    public ResponseEntity<CheckInResponse> previewCheckIn(
+            @PathVariable Long eventId,
+            @Valid @RequestBody CheckInRequest request,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        return ResponseEntity.ok(
+                ticketService.preview(principal.getUser(), eventId, request.token()));
+    }
+
+    @PostMapping("/me/events/{eventId}/check-in")
+    public ResponseEntity<CheckInResponse> checkIn(
+            @PathVariable Long eventId,
+            @Valid @RequestBody CheckInRequest request,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        return ResponseEntity.ok(
+                ticketService.checkIn(principal.getUser(), eventId, request.token()));
+    }
+
     @PatchMapping("/me")
     public ResponseEntity<OrganizerResponse> updateMine(
             @Valid @RequestBody UpdateOrganizerRequest request,

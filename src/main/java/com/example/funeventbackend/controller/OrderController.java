@@ -2,8 +2,12 @@ package com.example.funeventbackend.controller;
 
 import com.example.funeventbackend.dto.order.CreateOrderRequest;
 import com.example.funeventbackend.dto.order.OrderResponse;
+import com.example.funeventbackend.dto.ticket.TicketResponse;
 import com.example.funeventbackend.security.CustomUserDetails;
 import com.example.funeventbackend.service.OrderService;
+import com.example.funeventbackend.service.TicketService;
+
+import java.util.List;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
@@ -20,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class OrderController {
     private final OrderService orderService;
+    private final TicketService ticketService;
 
     @PostMapping
     public ResponseEntity<OrderResponse> create(
@@ -48,5 +53,21 @@ public class OrderController {
             @PathVariable Long id
     ) {
         return ResponseEntity.ok(orderService.findByIdAndUser(principal.getUser(), id));
+    }
+
+    /**
+     * 這張訂單的票券（含可入場的 QR 內容）。
+     *
+     * <p>⚠️ 刻意<b>不</b>併進 {@code OrderResponse}：那個 DTO 也用在訂單列表
+     *（一頁 10 筆），每筆再帶 N 張票會又大又容易 1+N。票券只有詳情頁需要。
+     *
+     * <p>⚠️ 未付款的訂單自然回空陣列 —— 票是付款成功才發的。
+     */
+    @GetMapping("/{id}/tickets")
+    public ResponseEntity<List<TicketResponse>> findMyTickets(
+            @AuthenticationPrincipal CustomUserDetails principal,
+            @PathVariable Long id
+    ) {
+        return ResponseEntity.ok(ticketService.findByOrder(principal.getUser(), id));
     }
 }

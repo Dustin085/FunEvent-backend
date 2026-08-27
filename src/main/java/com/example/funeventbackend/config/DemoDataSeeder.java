@@ -21,6 +21,7 @@ import com.example.funeventbackend.repository.OrderRepository;
 import com.example.funeventbackend.repository.OrganizerRepository;
 import com.example.funeventbackend.repository.TicketTypeRepository;
 import com.example.funeventbackend.repository.UserRepository;
+import com.example.funeventbackend.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
@@ -61,6 +62,8 @@ public class DemoDataSeeder implements ApplicationRunner {
     private final OrderItemRepository orderItemRepository;
     private final CommentRepository commentRepository;
     private final PasswordEncoder passwordEncoder;
+    // ⚠️ 票券走 service 產生，不自己 new —— 見 seedTickets 的說明
+    private final TicketService ticketService;
 
     @Override
     @Transactional
@@ -77,7 +80,7 @@ public class DemoDataSeeder implements ApplicationRunner {
                 .name("蘭響音樂教室")
                 .role(RoleType.USER)
                 .build());
-        userRepository.save(User.builder()
+        User buyer = userRepository.save(User.builder()
                 .email(BUYER_EMAIL)
                 .passwordHash(passwordEncoder.encode(DEMO_PASSWORD))
                 .name("示範買家")
@@ -94,6 +97,9 @@ public class DemoDataSeeder implements ApplicationRunner {
         // 已經結束的那一場要拿來示範評論 —— 評論資格要求「活動已開始 + 有 PAID 訂單」
         Event pastEvent = null;
         TicketType pastEventTicket = null;
+        // 即將舉行的那一場拿來示範票券與入場驗票
+        Event upcomingEvent = null;
+        TicketType upcomingEventTicket = null;
 
         for (DemoEvent demo : DEMO_EVENTS) {
             Event event = eventRepository.save(Event.builder()
@@ -142,6 +148,9 @@ public class DemoDataSeeder implements ApplicationRunner {
             if (demo.startInDays() < 0) {
                 pastEvent = event;
                 pastEventTicket = firstTicket;
+            } else if (upcomingEvent == null) {
+                upcomingEvent = event;
+                upcomingEventTicket = firstTicket;
             }
         }
 
@@ -153,8 +162,49 @@ public class DemoDataSeeder implements ApplicationRunner {
                     pastEvent.getId(), pastEvent.getName());
         }
 
+        if (upcomingEvent != null && upcomingEventTicket != null) {
+            seedTickets(buyer, upcomingEvent, upcomingEventTicket);
+        }
+
         log.warn("已建立 {} 場示範活動。可登入帳號：{} / {}（買家）、{} / {}（主辦者）",
                 DEMO_EVENTS.size(), BUYER_EMAIL, DEMO_PASSWORD, ORGANIZER_EMAIL, DEMO_PASSWORD);
+    }
+
+    /**
+     * 給示範買家一筆已付款訂單，含兩張待核銷的票券。
+     *
+     * <p>⭐ 兩張而不是一張：入場驗票要能示範「掃第一張成功、第二張仍然有效」，
+     * 以及「同一張掃第二次會被擋下」。一張票測不出前者。
+     *
+     * <p>⚠️ 票券用 {@code TicketService.issueForOrder} 產生，<b>不是</b>自己 new Ticket ——
+     * 走跟正式流程完全一樣的路徑，示範資料才不會跟真實資料長得不一樣。
+     */
+    private void seedTickets(User buyer, Event event, TicketType ticketType) {
+        int quantity = 8;
+        BigDecimal total = ticketType.getPrice().multiply(BigDecimal.valueOf(quantity));
+
+        Order order = orderRepository.save(Order.builder()
+                .user(buyer)
+                .totalAmount(total)
+                .status(OrderStatusType.PAID)
+                .paidAt(Instant.now().minus(2, ChronoUnit.DAYS))
+                // 早就付完款了，期限不再有意義，但欄位是 NOT NULL
+                .expiresAt(Instant.now().minus(2, ChronoUnit.DAYS))
+                .build());
+        orderItemRepository.save(OrderItem.builder()
+                .order(order)
+                .ticketType(ticketType)
+                .ticketTypeName(ticketType.getName())
+                .unitPrice(ticketType.getPrice())
+                .quantity(quantity)
+                .build());
+        // 賣掉了就要扣庫存，否則示範資料自己就是不一致的
+        ticketType.setStock(ticketType.getStock() - quantity);
+
+        ticketService.issueForOrder(order.getId());
+
+        log.warn("示範買家有 {} 張待核銷的票，活動 id={}：{}",
+                quantity, event.getId(), event.getName());
     }
 
     /**
