@@ -7,6 +7,7 @@ import com.example.funeventbackend.dto.order.EventSalesSummary;
 import com.example.funeventbackend.dto.organizer.CreateOrganizerRequest;
 import com.example.funeventbackend.dto.organizer.OrganizerResponse;
 import com.example.funeventbackend.dto.organizer.UpdateOrganizerRequest;
+import com.example.funeventbackend.dto.ticket.CheckInProgressResponse;
 import com.example.funeventbackend.dto.ticket.CheckInRequest;
 import com.example.funeventbackend.dto.ticket.CheckInResponse;
 import com.example.funeventbackend.model.EventStatus;
@@ -109,6 +110,21 @@ public class OrganizerController {
     ) {
         return ResponseEntity.ok(
                 ticketService.checkIn(principal.getUser(), eventId, request.token()));
+    }
+
+    /**
+     * 核銷進度：「已入場 120 / 應到 300」，並且拆到票種。
+     *
+     * <p>⚠️ 分母是「應到人數」＝ VALID + USED，<b>不含 VOID</b>。
+     * 理由見 {@link CheckInProgressResponse}。
+     */
+    @GetMapping("/me/events/{eventId}/check-in/progress")
+    public ResponseEntity<CheckInProgressResponse> checkInProgress(
+            @PathVariable Long eventId,
+            @AuthenticationPrincipal CustomUserDetails principal
+    ) {
+        return ResponseEntity.ok(
+                ticketService.progress(principal.getUser(), eventId));
     }
 
     @PatchMapping("/me")

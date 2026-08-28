@@ -1,5 +1,6 @@
 package com.example.funeventbackend.repository;
 
+import com.example.funeventbackend.dto.ticket.TicketStatusCount;
 import com.example.funeventbackend.model.Ticket;
 import com.example.funeventbackend.model.User;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -47,6 +48,29 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     Optional<Ticket> findByIdAndEventId(
             @Param("ticketId") Long ticketId,
             @Param("eventId") Long eventId);
+
+    /**
+     * 核銷進度：這個活動每個票種、每個狀態各有幾張票，<b>一句 GROUP BY 查完</b>。
+     *
+     * <p>⭐ 絕不能寫成「每個票種各查一次」或「三個狀態各 COUNT 一次」——
+     * 跟 {@code EventTicketAggregate} 的最低價／庫存是同一類問題。
+     * {@code TicketCheckInProgressSqlCountTest} 用 Hibernate 的
+     * {@code Statistics} 把句數寫成斷言守住這件事。
+     *
+     * <p>⚠️ {@code GROUP BY} <b>只會回傳「有票的組合」</b>：某票種一張 VOID 都沒有時，
+     * 就沒有那一列。Service 補 0 —— 這裡補 0 是對的（沒有列真的等於零張），
+     * 跟 {@code RatingSummary} 的「AVG 回 null 不能轉成 0」剛好相反，
+     * 差別在於那個 null 代表「沒有人評分」而不是「零分」。
+     *
+     * <p>⚠️ 同理，<b>一張票都沒賣的票種完全不會出現在結果裡</b>。
+     * Service 因此另外撈一次票種清單，見 {@code TicketService.progress}。
+     */
+    @Query("SELECT new com.example.funeventbackend.dto.ticket.TicketStatusCount("
+            + "t.orderItem.ticketType.id, t.status, COUNT(t)) "
+            + "FROM Ticket t "
+            + "WHERE t.orderItem.ticketType.event.id = :eventId "
+            + "GROUP BY t.orderItem.ticketType.id, t.status")
+    List<TicketStatusCount> countByTicketTypeAndStatus(@Param("eventId") Long eventId);
 
     /**
      * 條件式 UPDATE：判斷與寫入在同一句 SQL，由資料庫保證原子性。

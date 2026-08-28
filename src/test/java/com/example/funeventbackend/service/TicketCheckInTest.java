@@ -1,6 +1,8 @@
 package com.example.funeventbackend.service;
 
+import com.example.funeventbackend.dto.ticket.CheckInProgressResponse;
 import com.example.funeventbackend.dto.ticket.CheckInResponse;
+import com.example.funeventbackend.dto.ticket.TicketTypeCheckInProgress;
 import com.example.funeventbackend.exception.ResourceAccessDeniedException;
 import com.example.funeventbackend.model.Category;
 import com.example.funeventbackend.model.City;
@@ -208,6 +210,96 @@ class TicketCheckInTest {
         assertThrows(ResourceAccessDeniedException.class,
                 () -> ticketService.checkIn(
                         otherOrganizerUser, event.getId(), ticketTokenSigner.sign(ticket.getId())));
+    }
+
+    // ── 核銷進度 ─────────────────────────────────────────
+
+    @Test
+    @DisplayName("⭐ 不是自己的活動：連進度都看不到（403）")
+    void cannotSeeProgressForSomeoneElsesEvent() {
+        assertThrows(ResourceAccessDeniedException.class,
+                () -> ticketService.progress(otherOrganizerUser, event.getId()));
+    }
+
+    @Test
+    @DisplayName("核銷一張之後是 1 / 2")
+    void progressCountsCheckedInAgainstExpected() {
+        Ticket ticket = firstTicket();
+        ticketService.checkIn(
+                organizerUser, event.getId(), ticketTokenSigner.sign(ticket.getId()));
+
+        CheckInProgressResponse progress = ticketService.progress(organizerUser, event.getId());
+
+        assertEquals(1, progress.checkedIn());
+        assertEquals(2, progress.expected());
+        assertEquals(0, progress.voided());
+    }
+
+    @Test
+    @DisplayName("⭐ VOID 不算進應到人數 —— 退掉的票不該留在分母裡")
+    void voidedTicketsAreExcludedFromExpected() {
+        ticketService.issueForOrder(orderId);
+        Ticket voided = ticketRepository.findByOrderItemOrderIdOrderByIdAsc(orderId).getFirst();
+        voided.setStatus(TicketStatus.VOID);
+        ticketRepository.save(voided);
+
+        CheckInProgressResponse progress = ticketService.progress(organizerUser, event.getId());
+
+        assertEquals(0, progress.checkedIn());
+        // ⚠️ 賣出 2 張、退掉 1 張 → 現場「還有多少人沒進來」的分母是 1，不是 2
+        assertEquals(1, progress.expected(), "退掉的票不該留在應到人數裡");
+        assertEquals(1, progress.voided(), "但退了幾張仍然要看得到");
+    }
+
+    @Test
+    @DisplayName("⭐ 一張都沒賣的票種也要出現，不能從畫面上憑空消失")
+    void ticketTypeWithNoSalesStillAppears() {
+        ticketService.issueForOrder(orderId);
+        saveTicket(event, "VIP 票");   // 建了但完全沒賣
+
+        CheckInProgressResponse progress = ticketService.progress(organizerUser, event.getId());
+
+        // ⚠️ 進度是從 tickets 做 GROUP BY 的，沒賣過的票種不會出現在那個結果裡。
+        // 少了「另外撈票種清單」那一步，這裡就會是 1
+        assertEquals(2, progress.byTicketType().size(), "沒賣出的票種消失，看起來像壞掉");
+
+        TicketTypeCheckInProgress vip = progress.byTicketType().getLast();
+        assertEquals("VIP 票", vip.name());
+        assertEquals(0, vip.expected());
+        assertEquals(0, vip.checkedIn());
+        // 活動層不受影響
+        assertEquals(2, progress.expected());
+    }
+
+    @Test
+    @DisplayName("⭐ 拆到票種：各票種各自計算，活動層是它們的和")
+    void progressBreaksDownByTicketType() {
+        ticketService.issueForOrder(orderId);                  // 一般票 2 張
+        TicketType vip = saveTicket(event, "VIP 票");
+        Long vipOrderId = savePaidOrder(buyer, vip, 3);        // VIP 3 張
+        ticketService.issueForOrder(vipOrderId);
+
+        // VIP 核銷一張
+        Ticket vipTicket =
+                ticketRepository.findByOrderItemOrderIdOrderByIdAsc(vipOrderId).getFirst();
+        ticketService.checkIn(
+                organizerUser, event.getId(), ticketTokenSigner.sign(vipTicket.getId()));
+
+        CheckInProgressResponse progress = ticketService.progress(organizerUser, event.getId());
+
+        TicketTypeCheckInProgress general = progress.byTicketType().getFirst();
+        assertEquals("一般票", general.name());
+        assertEquals(0, general.checkedIn());
+        assertEquals(2, general.expected());
+
+        TicketTypeCheckInProgress vipProgress = progress.byTicketType().getLast();
+        assertEquals("VIP 票", vipProgress.name());
+        assertEquals(1, vipProgress.checkedIn(), "核銷的是 VIP，不該算到一般票頭上");
+        assertEquals(3, vipProgress.expected());
+
+        // 活動層 = 票種層相加
+        assertEquals(1, progress.checkedIn());
+        assertEquals(5, progress.expected());
     }
 
     // ── fixture ──────────────────────────────────────────
