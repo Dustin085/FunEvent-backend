@@ -61,7 +61,7 @@ public class CorsConfig {
         config.setMaxAge(Duration.ofHours(1));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        // 只套用在 /api/** —— h2-console 是同源開啟的，不需要 CORS
+        // 只套用在 /api/** —— 其餘路徑（錯誤頁、actuator 之類）不對外開放跨來源存取
         source.registerCorsConfiguration("/api/**", config);
         return source;
     }

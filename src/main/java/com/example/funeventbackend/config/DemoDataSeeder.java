@@ -37,8 +37,12 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 
 /**
- * 開發用示範資料。H2 是記憶體資料庫，每次重啟都會清空 ——
- * 有了它，重啟後端就自動有一批可展示的活動，不必再開 Postman 建。
+ * 開發用示範資料：一批可展示的活動，不必再開 Postman 一筆一筆建。
+ *
+ * <p>⚠️ 轉到 PostgreSQL 之後（2026-08-28）資料會持久化，**重啟不會重跑** ——
+ * 下面的 {@code userRepository.count() > 0} 一看到既有資料就直接返回。
+ * 想要一份乾淨的示範資料要 {@code docker compose down -v} 把 volume 砍掉重來。
+ * H2 記憶體模式時代則是每次重啟都自動重灌，行為不一樣，別照舊印象推論。
  *
  * <p>⚠️ 預設關閉（{@code @ConditionalOnProperty} 刻意不加 matchIfMissing）。
  * 它會建立密碼公開的帳號，在正式環境跑起來等於直接開後門。

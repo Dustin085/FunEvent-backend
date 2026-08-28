@@ -143,7 +143,12 @@ class OrderConcurrencyTest {
         assertTrue(finishGate.await(30, TimeUnit.SECONDS), "測試逾時，可能發生死鎖");
         executor.shutdown();
 
-        // 觀察用：印出失敗者實際丟的例外，確認 H2 是「重新評估條件」還是「丟併發例外」
+        // 觀察用：印出失敗者實際丟的例外。
+        // 2026-08-28 在真的 PostgreSQL 17 上實測的答案：9 個失敗者**全部**是
+        // InsufficientStockException，沒有任何一個是併發／序列化例外 ——
+        // 也就是說 PostgreSQL 走的是「重新評估條件」：搶輸的交易等鎖放開後
+        // 重跑 WHERE stock >= n，發現不成立就影響 0 列，由程式轉成領域例外。
+        // ⭐ 這是條件式 UPDATE 相對於悲觀鎖的關鍵好處：呼叫端只要處理一種失敗。
         failures.forEach(t -> System.out.println(
                 "[失敗] " + t.getClass().getName() + " : " + t.getMessage()));
 

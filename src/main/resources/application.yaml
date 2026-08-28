@@ -50,14 +50,6 @@ spring:
           starttls:
             enable: true
 
-  # ── H2 Console ─────────────────────────────────────────────
-  # 瀏覽器開 http://localhost:8080/h2-console
-  # JDBC URL 要填上面那串 jdbc:h2:mem:funevent，帳號 sa、密碼留空
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-
 app:
   access-token:
     secret: ${JWT_SECRET:dev-only-secret-dsafjdfjieawjfeaidjofasiegnoawjio}

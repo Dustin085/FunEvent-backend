@@ -24,7 +24,8 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       # named volume：資料在 docker compose down 之後仍然留著。
-      # ⚠️ 這是跟 H2 記憶體模式最大的行為差異，重啟不再是乾淨狀態
+      # ⚠️ 重啟不再是乾淨狀態，所以 DemoDataSeeder 不會重跑（它看到既有資料就返回）。
+      # 想重灌示範資料要 docker compose down -v 把這個 volume 一起砍掉
       - funevent-pgdata:/var/lib/postgresql/data
     healthcheck:
       # 有這段，之後接 Spring Boot 的 docker compose 支援或 CI 才知道「何時可以連了」。
