@@ -72,6 +72,30 @@
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
+
+        <!--   schema 版本控管。ddl-auto 從 update 改成 validate 之後，
+               所有建表／加欄位都由 src/main/resources/db/migration 下的
+               V*.sql 負責，Hibernate 只負責「檢查 entity 跟實際 schema 對不對得上」。
+
+               ⚠️ 要的是 spring-boot-flyway，不是 org.flywaydb:flyway-core ——
+               Boot 4 把自動組態拆成一個個獨立模組（同 spring-boot-h2console）。
+               只加 flyway-core 的話 jar 在 classpath 上、Flyway 也能用，
+               但**沒有任何人會去讀 db/migration**：啟動時零個 Flyway log，
+               然後 Hibernate 的 validate 報 missing table。⚠️ 這個失敗長得像
+               「migration 寫錯」，其實是「migration 根本沒跑」。
+               flyway-core 由這個模組遞移帶進來。
+               版本由 spring-boot-starter-parent 管理     -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-flyway</artifactId>
+        </dependency>
+        <!--   ⚠️ 這個也不是可有可無的：Flyway 10 之後各家資料庫的支援拆成獨立模組，
+               少了它會在啟動時說「Unsupported Database: PostgreSQL」     -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-database-postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

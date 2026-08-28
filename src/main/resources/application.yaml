@@ -3,21 +3,29 @@ spring:
     name: FunEvent-backend
 
   # ── 資料庫連線 ──────────────────────────────────────────────
-  # 目前用 H2 記憶體模式暫代 PostgreSQL，之後切換只需改這一段。
-  # DB_CLOSE_DELAY=-1：讓 DB 在最後一個連線關閉後仍存活，
-  #   否則 h2-console 斷線重連時資料會整個消失。
+  # 本機開發連 docker-compose.yml 起的 PostgreSQL：docker compose up -d
+  # 預設值跟 docker-compose.yml 的 POSTGRES_* 成對，正式環境用環境變數整組覆蓋。
+  #
+  # ⚠️ 資料現在會持久化。DemoDataSeeder 的 count() > 0 防線代表「重啟不會重跑」，
+  #    想要一份乾淨的示範資料要 docker compose down -v。
+  #
+  # 沒有 driver-class-name：Boot 從 URL 的 jdbc:postgresql: 前綴就推得出來，
+  # 寫了只是多一個之後換 DB 會忘記改的地方。
   datasource:
-    url: jdbc:h2:mem:funevent;DB_CLOSE_DELAY=-1
-    driver-class-name: org.h2.Driver
-    username: sa
-    password:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/funevent}
+    username: ${DB_USERNAME:funevent}
+    password: ${DB_PASSWORD:funevent}
 
   # ── JPA / Hibernate ────────────────────────────────────────
   jpa:
     hibernate:
-      # update：依 Entity 自動建表/加欄位。開發期方便，
-      # 但正式環境是地雷（不會刪欄位、無版本紀錄），之後轉 PostgreSQL 要換成 Flyway。
-      ddl-auto: update
+      # schema 由 Flyway 管（src/main/resources/db/migration）。
+      # validate 只做一件事：啟動時比對 entity 與實際 schema，對不上就拒絕啟動。
+      #
+      # ⚠️ 它檢查表、欄位、型別，但**不檢查約束名、索引、CHECK 條件**——
+      # 那些漏掉的話 validate 會照樣放行，要靠測試守。
+      # ⚠️ 加欄位不再自動生效了，要寫一個新的 V2__xxx.sql。
+      ddl-auto: validate
     # 把 Hibernate 產生的 SQL 印出來，方便對照 Entity 與實際 SQL
     show-sql: true
     properties:

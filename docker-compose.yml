@@ -1,0 +1,38 @@
+# 本機開發用的 PostgreSQL。
+#
+#   docker compose up -d      啟動
+#   docker compose down       停掉（資料留著）
+#   docker compose down -v    停掉並砍掉資料 —— 想讓 DemoDataSeeder 重跑時用這個
+#
+# ⚠️ 這裡的帳密是「本機開發專用」，跟 application.yaml 的預設值成對。
+#    正式環境不會用這個檔案，是用託管的 PostgreSQL + 環境變數覆蓋 DB_URL/DB_USERNAME/DB_PASSWORD。
+#
+# ⚠️ 沒有 version: 這個鍵 —— Compose v2 之後它已經廢棄，寫了會跳警告。
+services:
+  db:
+    image: postgres:17
+    container_name: funevent-db
+    environment:
+      POSTGRES_DB: funevent
+      POSTGRES_USER: funevent
+      POSTGRES_PASSWORD: funevent
+      # 讓容器初始化時就用 UTF-8 建 DB。PostgreSQL 官方映像的預設 locale 是 C，
+      # 排序（ORDER BY）對中文會變成按 byte 比大小
+      LANG: C.UTF-8
+    ports:
+      # 只綁 127.0.0.1，不要開給區域網路 —— 這組帳密是公開寫在檔案裡的
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # named volume：資料在 docker compose down 之後仍然留著。
+      # ⚠️ 這是跟 H2 記憶體模式最大的行為差異，重啟不再是乾淨狀態
+      - funevent-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # 有這段，之後接 Spring Boot 的 docker compose 支援或 CI 才知道「何時可以連了」。
+      # 容器 running 不等於 PostgreSQL 已經可以接受連線
+      test: ["CMD-SHELL", "pg_isready -U funevent -d funevent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  funevent-pgdata:
