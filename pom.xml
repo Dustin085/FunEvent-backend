@@ -148,6 +148,20 @@
             <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!--   測試跑在真的 PostgreSQL 容器上，而不是 H2。
+               ⚠️ 這才是整個 PostgreSQL 遷移的重點 —— 悲觀鎖、SELECT FOR UPDATE、
+               竊用偵測的行為 H2 跟 PG 不保證一樣，在 H2 上綠燈不代表在 PG 上對。
+               ⚠️ 是 testcontainers-postgresql 不是 postgresql ——
+               Testcontainers 2.0 把所有模組改名加上 testcontainers- 前綴。
+               網路上的教學幾乎都還是 1.x 的寫法（org.testcontainers:postgresql），
+               照抄會得到「'dependencies.dependency.version' is missing」。
+               版本由 spring-boot-starter-parent 匯入的 testcontainers-bom 2.0.5 管理     -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers-postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
