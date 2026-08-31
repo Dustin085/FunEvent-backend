@@ -1,3 +1,9 @@
+# Render（以及大多數 PaaS）會注入 PORT 環境變數，並且只把流量轉給那個 port ——
+# 服務開機成功但沒有監聽 PORT 的話，健康檢查會一直失敗，Render 判定部署失敗。
+# 本機開發沒有 PORT 這個環境變數，所以退回 8080，跟 docker-compose 的習慣一致。
+server:
+  port: ${PORT:8080}
+
 spring:
   application:
     name: FunEvent-backend
@@ -117,5 +123,10 @@ app:
 # ── Log 等級 ──────────────────────────────────────────────────
 logging:
   level:
-    # 顯示 SQL 中 ? 實際綁定的參數值，除錯時很有用
-    org.hibernate.orm.jdbc.bind: trace
+    # ⚠️ 曾經是 trace（顯示 SQL 中 ? 實際綁定的參數值，除錯時很有用），
+    # 但 trace 會把 refresh token hash、密碼 hash、重設密碼 token hash
+    # 全部印進去。正式環境的 log 通常是能被多人查看的（Render 的 log 面板、
+    # 之後接的任何 log 服務），這些是不該被任何人看到的東西 —— 即使是展示用的
+    # 假資料環境。要重新對照 SQL 綁定值時，本機開發手動改回 trace 即可，
+    # 不要讓它變成常態設定
+    org.hibernate.orm.jdbc.bind: warn

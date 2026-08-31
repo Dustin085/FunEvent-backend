@@ -1,13 +1,17 @@
 package com.example.funeventbackend.service;
 
+import com.example.funeventbackend.dto.ticket.CheckInProgressResponse;
 import com.example.funeventbackend.dto.ticket.CheckInResponse;
 import com.example.funeventbackend.dto.ticket.TicketResponse;
+import com.example.funeventbackend.dto.ticket.TicketStatusCount;
+import com.example.funeventbackend.dto.ticket.TicketTypeCheckInProgress;
 import com.example.funeventbackend.model.OrderItem;
 import com.example.funeventbackend.model.Ticket;
 import com.example.funeventbackend.model.TicketStatus;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.repository.OrderItemRepository;
 import com.example.funeventbackend.repository.TicketRepository;
+import com.example.funeventbackend.repository.TicketTypeRepository;
 import com.example.funeventbackend.security.TicketTokenSigner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,13 +21,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TicketService {
     private final TicketRepository ticketRepository;
+    // 核銷進度要列出「一張都沒賣的票種」，那些不會出現在 GROUP BY 的結果裡
+    private final TicketTypeRepository ticketTypeRepository;
     private final OrderItemRepository orderItemRepository;
     private final TicketTokenSigner ticketTokenSigner;
     // 核銷時確認「這個活動是不是你的」
@@ -106,6 +114,54 @@ public class TicketService {
         }
         Ticket ticket = found.get();
         return CheckInResponse.of(predictedResult(ticket.getStatus()), ticket);
+    }
+
+    /**
+     * 主辦者的核銷進度：「已入場 120 / 應到 300」，並且拆到票種。
+     *
+     * <p>⚠️ 授權沿用 {@code getOwnedEntity} —— 不是你的活動就 403，跟 {@code checkIn}
+     * 完全一致。這裡是 403 不是 404：已發布的活動本來就是公開的，隱瞞存在沒有意義。
+     *
+     * <p>⭐ <b>兩句查詢，而且都跟票種數無關（O(1)）</b>：一句撈票種清單、一句 GROUP BY
+     * 算數字。活動層的總數是<b>把票種層的數字加起來</b>得到的，
+     * 刻意不為了它再發第三句聚合查詢。
+     *
+     * <p>⚠️ 為什麼票種清單要另外撈：{@code GROUP BY} 是從 tickets 出發的，
+     * <b>一張都沒賣出去的票種不會出現在結果裡</b>。少了那一句，新建的票種會
+     * 從主辦者的畫面上憑空消失 —— 看起來像壞掉，而不像「還沒賣出」。
+     */
+    @Transactional(readOnly = true)
+    public CheckInProgressResponse progress(User organizer, Long eventId) {
+        eventService.getOwnedEntity(organizer, eventId);
+
+        // status -> 張數，依票種分組。⚠️ 只有「有票的組合」會在裡面
+        Map<Long, Map<TicketStatus, Long>> counts = ticketRepository
+                .countByTicketTypeAndStatus(eventId).stream()
+                .collect(Collectors.groupingBy(
+                        TicketStatusCount::ticketTypeId,
+                        Collectors.toMap(TicketStatusCount::status, TicketStatusCount::count)));
+
+        List<TicketTypeCheckInProgress> byTicketType = ticketTypeRepository
+                .findByEventIdOrderByIdAsc(eventId).stream()
+                .map(ticketType -> {
+                    Map<TicketStatus, Long> byStatus =
+                            counts.getOrDefault(ticketType.getId(), Map.of());
+                    long used = byStatus.getOrDefault(TicketStatus.USED, 0L);
+                    long valid = byStatus.getOrDefault(TicketStatus.VALID, 0L);
+                    long voided = byStatus.getOrDefault(TicketStatus.VOID, 0L);
+                    return new TicketTypeCheckInProgress(
+                            ticketType.getId(), ticketType.getName(),
+                            used, used + valid, voided);
+                })
+                .toList();
+
+        // 活動層 = 票種層相加。⚠️ 不要改成另一句 GROUP BY ——
+        // 兩句各自算的話，中間有票被核銷就會回傳對不起來的數字
+        return new CheckInProgressResponse(
+                byTicketType.stream().mapToLong(TicketTypeCheckInProgress::checkedIn).sum(),
+                byTicketType.stream().mapToLong(TicketTypeCheckInProgress::expected).sum(),
+                byTicketType.stream().mapToLong(TicketTypeCheckInProgress::voided).sum(),
+                byTicketType);
     }
 
     /**
