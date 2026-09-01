@@ -33,7 +33,7 @@ spring:
       # ⚠️ 加欄位不再自動生效了，要寫一個新的 V2__xxx.sql。
       ddl-auto: validate
     # 把 Hibernate 產生的 SQL 印出來，方便對照 Entity 與實際 SQL
-    show-sql: true
+    show-sql: ${JPA_SHOW_SQL:true}
     properties:
       hibernate:
         format_sql: true
