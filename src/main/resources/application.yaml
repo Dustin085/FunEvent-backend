@@ -33,7 +33,7 @@ spring:
       # ⚠️ 加欄位不再自動生效了，要寫一個新的 V2__xxx.sql。
       ddl-auto: validate
     # 把 Hibernate 產生的 SQL 印出來，方便對照 Entity 與實際 SQL
-    show-sql: true
+    show-sql: ${JPA_SHOW_SQL:true}
     properties:
       hibernate:
         format_sql: true
@@ -78,7 +78,12 @@ app:
     payment-timeout: 15m
     expiry:
       enabled: true
-      scan-interval: 60s
+      # ⚠️ 這支排程只負責「整理」——把逾時未付款的訂單轉成 CANCELLED、回補庫存。
+      # 它不是「訂單還能不能付款」的守門人，那件事由 OrderRepository.markPaid
+      # 自己在 WHERE 子句裡檢查 expiresAt，跟這支排程多久跑一次無關。
+      # 拉長這個值只會讓「已過期但還沒被整理」的訂單多占用庫存久一點
+      # （熱門活動看起來賣完的時間變長），不會讓過期訂單變得可以被付款。
+      scan-interval: 600s
   oauth:
     google:
       client-id: ${GOOGLE_CLIENT_ID}
@@ -107,6 +112,12 @@ app:
     # 預設 fake：測試與本機開發不需要真的金鑰。
     # ⚠️ 假閘道不驗簽，正式環境務必改成 ecpay。要使用 ecpay，需要公開網址，可用 ngrok (ngrok http 8080)
     gateway: ${PAYMENT_GATEWAY:fake}
+    # 已經開始的付款嘗試（Payment）自己的期限，跟訂單的 app.order.payment-timeout
+    # 是兩個獨立的時鐘：使用者在訂單快過期前才按下付款，Payment 會從按下的那個
+    # 時間點重新給滿這段時間，不會被訂單剩下的時間卡住。逾時取消排程判斷一筆
+    # 訂單能不能取消時，只要還有一筆 Payment 落在自己的期限內就不會動它。
+    # 兩者刻意都設 30 分鐘，值不需要相等，只是目前選擇一致。
+    timeout: 30m
     ecpay:
       # 這三個是綠界公開的測試環境值，正式金鑰一定要走環境變數
       merchant-id: ${ECPAY_MERCHANT_ID:3002607}
@@ -114,6 +125,10 @@ app:
       hash-iv: ${ECPAY_HASH_IV:EkRm7iFT261dpevs}
       # 測試環境是 payment-stage，正式環境是 payment
       api-url: ${ECPAY_API_URL:https://payment-stage.ecpay.com.tw/Cashier/AioCheckOut/V5}
+      # 主動查詢訂單狀態，跟 api-url 是不同的 API 家族但同一個網域、
+      # 同一套 CheckMacValue 簽章方式。排程要取消訂單前，用它跟綠界
+      # 確認有沒有漏接的付款成功回呼。
+      query-url: ${ECPAY_QUERY_URL:https://payment-stage.ecpay.com.tw/Cashier/QueryTradeInfo/V2}
       # 綠界伺服器打回來的網址，必須是公開可連的（本機開發要用 ngrok 之類的通道）
       return-url: ${ECPAY_RETURN_URL:}
       # 綠界付款頁上「返回商店」按鈕要導去的位置。

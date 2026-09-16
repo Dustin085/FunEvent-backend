@@ -5,21 +5,32 @@ import com.example.funeventbackend.model.Payment;
 import com.example.funeventbackend.payment.PaymentCallbackResult;
 import com.example.funeventbackend.payment.PaymentGateway;
 import com.example.funeventbackend.payment.PaymentInitiation;
+import com.example.funeventbackend.payment.PaymentQueryResult;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -51,6 +62,21 @@ public class EcpayPaymentGateway implements PaymentGateway {
     private static final int ITEM_NAME_MAX_LENGTH = 400;
 
     private final EcpayProperties properties;
+
+    // 只有 queryStatus 需要真的對外打 HTTP（initiate/parseCallback 都不用），
+    // 所以不透過 Spring bean 注入，直接建一個帶逾時的 RestClient 就夠。
+    // 逾時設定跟 GoogleOAuthConfig.googleOAuthRestClient 同樣的理由：
+    // 這支會在排程執行緒裡被呼叫，對方一慢就會卡住整批取消作業。
+    private final RestClient restClient = RestClient.builder()
+            .requestFactory(timeoutRequestFactory())
+            .build();
+
+    private static SimpleClientHttpRequestFactory timeoutRequestFactory() {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofSeconds(5));
+        factory.setReadTimeout(Duration.ofSeconds(10));
+        return factory;
+    }
 
     @PostConstruct
     void validateConfiguration() {
@@ -110,6 +136,97 @@ public class EcpayPaymentGateway implements PaymentGateway {
                 params.get("TradeNo"),
                 "1".equals(params.get("RtnCode")),   // 1 = 付款成功
                 new BigDecimal(params.get("TradeAmt"))));
+    }
+
+    /**
+     * 主動查詢一筆交易目前的狀態（QueryTradeInfo/V2）。
+     * <p>
+     * ⚠️ 這支 API 跟 {@link #initiate}／{@link #parseCallback} 用的 AioCheckOut V5
+     * 是不同的 API，但同一個網域、同一套 CheckMacValue 簽章方式，所以能直接沿用
+     * {@link CheckMacValueCalculator}。<b>不要</b>跟另一支新版的 QueryTrade
+     * （{@code ecpayment.ecpay.com.tw}）搞混——那支走 JSON + AES 加密，
+     * 是完全不同的簽章機制，接錯支會全部解不開。
+     * <p>
+     * ⚠️ 官方文件沒有明確寫出回應本體的傳輸格式，這裡照 ECPay classic API
+     * 一貫的 {@code key=value&key=value} 表單字串風格解析。第一次真的打測試環境時
+     * 務必核對這裡解析不解析得出來——文件含糊的地方不能只靠猜。
+     */
+    @Override
+    public Optional<PaymentQueryResult> queryStatus(String merchantTradeNo) {
+        Map<String, String> params = new HashMap<>();
+        params.put("MerchantID", properties.merchantId());
+        params.put("MerchantTradeNo", merchantTradeNo);
+        // 官方要求的是 Unix 秒數，而且驗證區間只有 3 分鐘內有效 ——
+        // 呼叫端千萬不要把這個值算好存起來重複使用
+        params.put("TimeStamp", String.valueOf(Instant.now().getEpochSecond()));
+        params.put("CheckMacValue",
+                CheckMacValueCalculator.calculate(params, properties.hashKey(), properties.hashIv()));
+
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        params.forEach(form::add);
+
+        String rawResponse;
+        try {
+            rawResponse = restClient.post()
+                    .uri(properties.queryUrl())
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(form)
+                    .retrieve()
+                    .body(String.class);
+        } catch (RestClientException e) {
+            // 連不上、逾時、對方回錯誤狀態碼 —— 呼叫端必須當成「不知道」，
+            // 不能當成「查到了、沒付款」，那會誤觸取消
+            log.warn("查詢綠界交易狀態失敗 merchantTradeNo={}", merchantTradeNo, e);
+            return Optional.empty();
+        }
+
+        return parseQueryResponse(rawResponse, merchantTradeNo);
+    }
+
+    private Optional<PaymentQueryResult> parseQueryResponse(String rawResponse, String merchantTradeNo) {
+        if (!StringUtils.hasText(rawResponse)) {
+            return Optional.empty();
+        }
+
+        Map<String, String> fields = Arrays.stream(rawResponse.split("&"))
+                .map(pair -> pair.split("=", 2))
+                .filter(kv -> kv.length == 2)
+                .collect(Collectors.toMap(
+                        kv -> URLDecoder.decode(kv[0], StandardCharsets.UTF_8),
+                        kv -> URLDecoder.decode(kv[1], StandardCharsets.UTF_8),
+                        (a, b) -> a));
+
+        String tradeStatus = fields.get("TradeStatus");
+        String tradeAmt = fields.get("TradeAmt");
+        if (tradeStatus == null || tradeAmt == null) {
+            log.warn("查詢綠界交易狀態的回應解析不出必要欄位 merchantTradeNo={} raw={}",
+                    merchantTradeNo, rawResponse);
+            return Optional.empty();
+        }
+
+        boolean paid = "1".equals(tradeStatus);
+        Instant paidAt = null;
+        if (paid) {
+            // ⚠️ 這裡不是可有可無的：這筆付款是事後才查到的，
+            // 必須用 ECPay 記錄的真正付款時間去判斷「當初付款那一刻訂單過期了沒」，
+            // 不能拿查詢當下的「現在」——那會讓一筆其實準時付款、只是回呼漏接的
+            // 交易被誤判成逾期。缺這個欄位就沒辦法正確判斷，當成解析失敗處理。
+            String paymentDate = fields.get("PaymentDate");
+            if (paymentDate == null) {
+                log.warn("查詢結果顯示已付款，但缺少 PaymentDate，無法判斷是否逾期 "
+                        + "merchantTradeNo={} raw={}", merchantTradeNo, rawResponse);
+                return Optional.empty();
+            }
+            paidAt = LocalDateTime.parse(paymentDate, TRADE_DATE_FORMAT)
+                    .atZone(TAIPEI).toInstant();
+        }
+
+        return Optional.of(new PaymentQueryResult(
+                merchantTradeNo,
+                fields.get("TradeNo"),
+                paid,
+                new BigDecimal(tradeAmt),
+                paidAt));
     }
 
     /**

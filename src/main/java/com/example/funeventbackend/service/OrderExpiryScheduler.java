@@ -33,7 +33,8 @@ public class OrderExpiryScheduler {
     private static final int MAX_BATCHES_PER_RUN = 10;
 
     private final OrderRepository orderRepository;
-    private final OrderService orderService;
+    // 取消前先問一次金流商，確認有沒有漏接的付款成功回呼 —— 見那個 class 的說明
+    private final PaymentReconciliationService paymentReconciliationService;
 
     /**
      * ⚠️ fixedDelay 不是 fixedRate：
@@ -58,9 +59,7 @@ public class OrderExpiryScheduler {
 
             for (Long id : ids) {
                 try {
-                    // ⚠️ 跨 bean 呼叫才會經過 AOP 代理，每一筆各自一個交易 ——
-                    // 一筆失敗不會把整批已完成的取消一起回滾
-                    if (orderService.cancelExpiredOrder(id)) {
+                    if (paymentReconciliationService.reconcileAndCancelIfUnpaid(id)) {
                         cancelled++;
                     }
                 } catch (Exception e) {

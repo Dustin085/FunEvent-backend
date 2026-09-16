@@ -7,7 +7,6 @@ import com.example.funeventbackend.exception.ResourceNotFoundException;
 import com.example.funeventbackend.model.Order;
 import com.example.funeventbackend.model.OrderStatusType;
 import com.example.funeventbackend.model.Payment;
-import com.example.funeventbackend.model.PaymentStatusType;
 import com.example.funeventbackend.model.User;
 import com.example.funeventbackend.payment.PaymentCallbackOutcome;
 import com.example.funeventbackend.payment.PaymentCallbackResult;
@@ -17,10 +16,12 @@ import com.example.funeventbackend.repository.OrderRepository;
 import com.example.funeventbackend.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 
@@ -29,28 +30,60 @@ import java.util.Map;
 @Slf4j
 public class PaymentService {
     private static final String ORDER_NOT_FOUND_MESSAGE = "找不到此訂單";
+    private static final String ORDER_NOT_PAYABLE_MESSAGE = "此訂單目前無法付款";
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final PaymentGateway paymentGateway;
-    // 付款成功後把訂單明細展開成票券
-    private final TicketService ticketService;
+    // 收到回呼／查到結果之後，實際寫進資料庫的共用邏輯，見那個 class 開頭的說明
+    private final PaymentResultApplier paymentResultApplier;
+    // 訂單過期時，initiate 要能立即處理（查詢確認、取消回補庫存），不用等排程
+    private final PaymentReconciliationService paymentReconciliationService;
 
-    @Transactional
+    /** 付款嘗試自己的期限，跟 app.order.payment-timeout 是兩個獨立的時鐘 */
+    @Value("${app.payment.timeout}")
+    private Duration paymentTimeout;
+
+    // ⚠️ noRollbackFor 不是可有可無的：訂單過期、沒有活著的付款時，
+    // 這支方法會先觸發取消（真的取消、真的回補庫存），然後才丟
+    // InvalidStateTransitionException 告訴呼叫端「這次不能付款」。
+    // Spring 預設遇到 unchecked exception 會把整個交易 rollback ——
+    // 連剛剛才做的取消跟回補庫存都會被撤銷，等於白做工，訂單還是卡在 PENDING。
+    // 這跟 RT 竊用偵測踩過的坑是同一個模式：不能讓「回報失敗」的例外
+    // 把「已經完成的正確處理」一起吃掉。
+    @Transactional(noRollbackFor = InvalidStateTransitionException.class)
     public PaymentInitiationResponse initiate(User user, Long orderId) {
         // 查詢條件含 user：不是你的訂單直接 404
         Order order = orderRepository.findByIdAndUser(orderId, user)
                 .orElseThrow(() -> new ResourceNotFoundException(ORDER_NOT_FOUND_MESSAGE));
         if (order.getStatus() != OrderStatusType.PENDING) {
-            throw new InvalidStateTransitionException("此訂單目前無法付款");
+            throw new InvalidStateTransitionException(ORDER_NOT_PAYABLE_MESSAGE);
+        }
+
+        Instant now = Instant.now();
+        if (order.getExpiresAt().isBefore(now)) {
+            // ⚠️ 訂單已經過期，但排程可能還沒處理到（scan-interval 可以長達一小時）。
+            // 與其等排程，這裡直接判斷能不能立刻處理 —— 但前提是沒有其他還活著的
+            // 付款嘗試：如果有，代表使用者之前按過付款、那筆付款自己的期限還沒到，
+            // 這裡貿然取消會把它連根拔起，重演「付完款才發現票被還回去」的問題，
+            // 只是換了個進入點。
+            //
+            // 沒有活著的付款時，也不能直接取消了事 —— 之前按過的那筆付款
+            // 即使自己的期限已經過了，也不代表綠界那邊真的沒收到錢，唯一能確定
+            // 的方法是查一次，見 PaymentReconciliationService。
+            if (!paymentRepository.existsLivePaymentForOrder(orderId, now)) {
+                paymentReconciliationService.reconcileAndCancelIfUnpaid(orderId);
+            }
+            throw new InvalidStateTransitionException(ORDER_NOT_PAYABLE_MESSAGE);
         }
 
         Payment payment = paymentRepository.save(Payment.builder()
                 .order(order)
                 .merchantTradeNo(generateMerchantTradeNo())
                 .amount(order.getTotalAmount())
+                .expiresAt(now.plus(paymentTimeout))
                 .build());
 
         // ⚠️ initiate 只做參數組裝與簽章，不打外部 HTTP。
@@ -65,56 +98,18 @@ public class PaymentService {
                 initiation.formFields());
     }
 
-    @Transactional
+    /**
+     * ⚠️ 不是 {@code @Transactional}：實際的資料庫寫入在
+     * {@code paymentResultApplier.apply} 自己的交易裡完成，這裡只負責解析回呼。
+     */
     public PaymentCallbackOutcome handleCallback(Map<String, String> params) {
         PaymentCallbackResult result = paymentGateway.parseCallback(params)
                 .orElseThrow(() -> new InvalidPaymentCallbackException("付款回呼驗證失敗"));
 
-        // 悲觀鎖：鎖住之後「讀狀態 → 判斷 → 寫」在 Java 裡才是安全的
-        Payment payment = paymentRepository.findByMerchantTradeNoForUpdate(result.merchantTradeNo())
-                .orElseThrow(() -> new InvalidPaymentCallbackException("找不到對應的付款記錄"));
-
-        // ⭐ 冪等：重複的回呼在這裡就返回，不再改任何資料，而且回應仍然是成功。
-        // 金流商收不到成功回應會不斷重送，第二次回錯誤只會讓它一直重試。
-        if (payment.getStatus() != PaymentStatusType.PENDING) {
-            log.info("重複的付款回呼，已忽略 merchantTradeNo={}", result.merchantTradeNo());
-            return PaymentCallbackOutcome.DUPLICATE;
-        }
-
-        payment.setRawCallback(params.toString());
-
-        if (!result.success()) {
-            payment.setStatus(PaymentStatusType.FAILED);
-            return PaymentCallbackOutcome.PAYMENT_FAILED;
-        }
-
-        // 金額只拿來比對，不拿來更新。不符就標記失敗並告警 ——
-        // 這裡刻意不丟例外，否則交易回滾，連 FAILED 都不會被記錄下來。
-        if (payment.getAmount().compareTo(result.amount()) != 0) {
-            payment.setStatus(PaymentStatusType.FAILED);
-            log.error("付款金額不符！merchantTradeNo={} 我方={} 回呼={}",
-                    result.merchantTradeNo(), payment.getAmount(), result.amount());
-            return PaymentCallbackOutcome.AMOUNT_MISMATCH;
-        }
-
-        Instant now = Instant.now();
-        payment.setStatus(PaymentStatusType.SUCCESS);
-        payment.setGatewayTradeNo(result.gatewayTradeNo());
-        payment.setPaidAt(now);
-
-        // 訂單狀態同樣用條件式 UPDATE，避免兩筆付款同時成功時重複轉移
-        int updatedRows = orderRepository.markPaid(payment.getOrder().getId(), now);
-        if (updatedRows == 0) {
-            // 錢收了但訂單已不是 PENDING（多半是逾時被取消，票已回補給別人）。
-            // 這是真實世界一定會發生的情況，必須人工介入退款。
-            log.error("付款成功但訂單狀態已非 PENDING，需人工退款 orderId={} merchantTradeNo={}",
-                    payment.getOrder().getId(), result.merchantTradeNo());
-        } else {
-            // ⭐ 只有「真的從 PENDING 轉成 PAID 的那一次」會走到這裡 ——
-            // 重複的回呼在上面就被 markPaid 的條件擋掉了，不會重複發票
-            ticketService.issueForOrder(payment.getOrder().getId());
-        }
-        return PaymentCallbackOutcome.APPLIED;
+        // 回呼是即時的，「現在」就是付款完成的時間，兩者沒有實質差距
+        return paymentResultApplier.apply(
+                result.merchantTradeNo(), result.success(), result.amount(),
+                result.gatewayTradeNo(), Instant.now(), params.toString());
     }
 
     /**

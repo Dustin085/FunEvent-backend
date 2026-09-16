@@ -23,4 +23,16 @@ public interface PaymentGateway {
      * 它的安全性 100% 建立在這個方法上。
      */
     Optional<PaymentCallbackResult> parseCallback(Map<String, String> params);
+
+    /**
+     * 主動向金流商查詢一筆交易的目前狀態。
+     * <p>
+     * 用在逾時取消訂單之前，確認有沒有漏接的付款成功回呼——回呼端點理論上
+     * 應該保證送達，但網路問題、我方伺服器短暫掛掉都可能讓它永遠不會再重送。
+     * <p>
+     * 回傳 {@code Optional.empty()} 代表<b>查詢本身失敗</b>（連不上、逾時、
+     * 回應解析不了）—— 這時候不能當成「查到了、沒付款」，呼叫端必須保守處理
+     * （先不要取消，留給下一輪排程再試）。
+     */
+    Optional<PaymentQueryResult> queryStatus(String merchantTradeNo);
 }

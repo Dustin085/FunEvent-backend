@@ -14,6 +14,9 @@ public record EcpayProperties(
         String hashKey,
         String hashIv,
         String apiUrl,
+        // 主動查詢訂單狀態用，跟 apiUrl 不同網址、不同 API，
+        // 但同一套 CheckMacValue 簽章方式
+        String queryUrl,
         String returnUrl,
         String clientBackUrl
 ) {

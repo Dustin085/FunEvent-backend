@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 開發與測試用的假金流閘道。不驗簽、不連外。
@@ -21,6 +22,10 @@ import java.util.Optional;
 @ConditionalOnProperty(name = "app.payment.gateway", havingValue = "fake", matchIfMissing = true)
 @Slf4j
 public class FakePaymentGateway implements PaymentGateway {
+    // 假閘道天生沒有真實的交易狀態可以查——callback 是測試自己 POST 進來的，
+    // 不是這個物件記住的。測試要驗證「查到已付款」這條路徑時，
+    // 用 registerQueryResult 先塞一筆進來。查不到的一律當作未付款。
+    private final Map<String, PaymentQueryResult> queryResults = new ConcurrentHashMap<>();
 
     @PostConstruct
     void warnThatThisIsNotSafeForProduction() {
@@ -50,5 +55,15 @@ public class FakePaymentGateway implements PaymentGateway {
                 params.getOrDefault("gatewayTradeNo", "FAKE-" + merchantTradeNo),
                 "1".equals(params.get("success")),
                 new BigDecimal(amount)));
+    }
+
+    @Override
+    public Optional<PaymentQueryResult> queryStatus(String merchantTradeNo) {
+        return Optional.ofNullable(queryResults.get(merchantTradeNo));
+    }
+
+    /** 測試用：模擬「主動查詢綠界，查到這筆其實已經付款成功」。 */
+    public void registerQueryResult(PaymentQueryResult result) {
+        queryResults.put(result.merchantTradeNo(), result);
     }
 }
