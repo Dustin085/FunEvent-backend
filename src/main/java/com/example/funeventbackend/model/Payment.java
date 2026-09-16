@@ -66,6 +66,12 @@ public class Payment {
     @Column(name = "paid_at")
     private Instant paidAt;
 
+    // 這筆付款嘗試自己的期限，跟 Order.expiresAt 是兩個獨立的時鐘。
+    // 在建立當下算好存起來（PaymentService.initiate），之後改設定值
+    // 不會影響已經建立的付款——跟 Order.expiresAt 是同一個原則。
+    @Column(name = "expires_at", nullable = false)
+    private Instant expiresAt;
+
     // 原始回呼內容存證。金額有爭議時這是你唯一的證據
     @Column(name = "raw_callback", columnDefinition = "TEXT")
     private String rawCallback;

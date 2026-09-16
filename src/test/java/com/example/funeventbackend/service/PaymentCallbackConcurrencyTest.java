@@ -74,6 +74,8 @@ class PaymentCallbackConcurrencyTest {
                 .order(order)
                 .merchantTradeNo(MERCHANT_TRADE_NO)
                 .amount(new BigDecimal("1000.00"))
+                // 這裡測的是回呼本身的冪等性，不是期限 —— 給一個還沒過期的值
+                .expiresAt(Instant.now().plusSeconds(1800))
                 .build());
     }
 

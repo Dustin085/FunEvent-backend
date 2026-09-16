@@ -133,6 +133,9 @@ class OrderExpiryRaceTest {
                 .order(order)
                 .merchantTradeNo(MERCHANT_TRADE_NO)
                 .amount(ORDER_AMOUNT)
+                // 這裡測的是訂單本身的競態，不是 Payment 自己的期限 ——
+                // 給一個還沒過期的值，避免跟這次要測的東西混在一起
+                .expiresAt(Instant.now().plus(30, ChronoUnit.MINUTES))
                 .build());
     }
 
