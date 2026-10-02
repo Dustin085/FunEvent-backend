@@ -181,6 +181,17 @@ public class RefreshTokenService {
                 .forEach(token -> token.setRevoked(true));
     }
 
+    /**
+     * 刪掉 {@code expires_at} 早於 cutoff 的票，回傳刪了幾列。
+     *
+     * <p>⚠️ 刻意不看 used / revoked，理由見 {@code RefreshTokenRepository.deleteByExpiresAtBefore}。
+     * cutoff 由呼叫端決定（排程會留一段緩衝），這裡不碰設定值。
+     */
+    @Transactional
+    public int purgeExpiredBefore(Instant cutoff) {
+        return refreshTokenRepository.deleteByExpiresAtBefore(cutoff);
+    }
+
     // 登出使用
     @Transactional
     public void logout(String rawToken) {

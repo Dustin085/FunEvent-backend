@@ -4,10 +4,12 @@ import com.example.funeventbackend.model.RefreshToken;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,4 +33,14 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     // 這個使用者的所有 token（改密碼時要全部撤銷）
     List<RefreshToken> findByUserId(Long userId);
+
+    /**
+     * 清理排程專用：只依 expires_at 刪，<b>不看 used / revoked</b>。
+     *
+     * <p>⚠️ 絕對不能加 {@code OR used = true}：未過期的已使用票正是竊用偵測的證據，
+     * 刪掉之後重放它會變成「查不到」而不是「撤銷整條 family」，而且不會有任何錯誤。
+     */
+    @Modifying
+    @Query("DELETE FROM RefreshToken rt WHERE rt.expiresAt < :cutoff")
+    int deleteByExpiresAtBefore(@Param("cutoff") Instant cutoff);
 }

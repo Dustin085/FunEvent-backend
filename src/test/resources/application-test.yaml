@@ -36,6 +36,10 @@ spring:
 app:
   demo-data:
     enabled: false
+  refresh-token:
+    cleanup:
+      # 同訂單逾時排程：測試自己決定何時清，不讓背景排程動資料
+      enabled: false
   order:
     expiry:
       # ⚠️ 測試自己控制何時觸發取消，不要讓排程在背景亂動資料 ——

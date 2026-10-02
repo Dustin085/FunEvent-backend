@@ -85,6 +85,13 @@ app:
     # 視為併發重送而非竊用。⚠️ 這段時間內真的被竊用會放行，所以要短。
     # Boot 會把 30s 解析成 java.time.Duration（同 app.order.payment-timeout）
     reuse-interval: 30s
+    # 已過期的票由排程定期清掉。
+    # ⚠️ 只清「過期超過 retention」的列，已使用但未過期的不碰（竊用偵測要用）。
+    # retention 是緩衝：避開時鐘誤差，也留一段事後查證的時間
+    cleanup:
+      enabled: true
+      cron: "0 30 3 * * *"
+      retention: 1d
   order:
     # 建單後多久未付款就自動取消並回補庫存。
     # Boot 會把 15m 這種寫法解析成 java.time.Duration
