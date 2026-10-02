@@ -21,6 +21,19 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/funevent}
     username: ${DB_USERNAME:funevent}
     password: ${DB_PASSWORD:funevent}
+    # ⚠️ Neon 的 scale to zero 只在「一條連線都沒有」時才會發生。
+    # HikariCP 預設 minimum-idle = maximum-pool-size = 10，等於永久握著
+    # 10 條閒置連線 —— compute 永遠不休眠，免費額度會被閒置時段吃光。
+    #
+    # ⚠️ 絕對不要設 keepalive-time：那是「定期 ping 閒置連線」，
+    # 正好是 Neon 文件點名會讓 scale to zero 失效的那個設定。
+    #
+    # 代價：閒置後的第一個請求要等 Neon 冷啟動（數百毫秒到一秒多）。
+    hikari:
+      minimum-idle: ${DB_MIN_IDLE:0}
+      # idle-timeout 只有在 minimum-idle < maximum-pool-size 時才生效
+      idle-timeout: 60000
+      maximum-pool-size: ${DB_MAX_POOL:5}
 
   # ── JPA / Hibernate ────────────────────────────────────────
   jpa:
@@ -83,7 +96,14 @@ app:
       # 自己在 WHERE 子句裡檢查 expiresAt，跟這支排程多久跑一次無關。
       # 拉長這個值只會讓「已過期但還沒被整理」的訂單多占用庫存久一點
       # （熱門活動看起來賣完的時間變長），不會讓過期訂單變得可以被付款。
-      scan-interval: 600s
+      #
+      # ⚠️ 另一個不能調回 60s 的理由：這支排程**無條件先發一次查詢**，
+      # 沒有待取消的訂單也照查。Neon 的 autosuspend 門檻是閒置 5 分鐘，
+      # 60s 一次等於 compute 永遠不休眠。600s 讓閒置時段變成醒一半、睡一半。
+      # ⚠️ 這只是降低不是消除 —— 要零流量零查詢得讓排程有狀態（有 PENDING
+      # 才掃），但多實例下旗標不共享，複雜度高得多，先不做。
+      # 本機開發想即時看到取消效果就用環境變數蓋掉。
+      scan-interval: ${ORDER_EXPIRY_SCAN_INTERVAL:600s}
   oauth:
     google:
       client-id: ${GOOGLE_CLIENT_ID}
